@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { loadWorkspaceEnv } from '../src/env.ts';
 
 /**
@@ -19,9 +20,12 @@ export default function setup(): void {
     throw new Error('TEST_DATABASE_URL must differ from DATABASE_URL: the test database is wiped.');
   }
 
-  execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'reset', '--force'], {
+  // Run Prisma's CLI entry point with this Node binary rather than through `pnpm exec`:
+  // no shell is needed on Windows (where pnpm is a .cmd shim), so arguments are never
+  // re-parsed by a shell.
+  const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js');
+  execFileSync(process.execPath, [prismaCli, 'migrate', 'reset', '--force'], {
     env: { ...process.env, DATABASE_URL: url },
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
 }
