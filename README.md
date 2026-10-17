@@ -74,6 +74,7 @@ pnpm build && pnpm test:e2e
 | [Coding conventions](docs/conventions.md)                           | TypeScript, naming, API design, layering rules, linting, git workflow                                                      |
 | [Development guide](docs/development.md)                            | Setup without Docker, seed data, commands, environment configuration, troubleshooting                                      |
 | [Testing strategy](docs/testing.md)                                 | Test layers, current suites, test database lifecycle, CI                                                                   |
+| [Deployment](docs/deployment.md)                                    | Frontend preview on Vercel: project settings, SPA routing, environment variables, attaching the API later                  |
 
 ## Roadmap
 

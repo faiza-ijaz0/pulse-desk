@@ -24,7 +24,10 @@ export function ApiStatus({ collapsed = false }: { collapsed?: boolean }) {
     status === 'online'
       ? `Version ${health.data?.version ?? ''} · up ${formatUptime(health.data?.uptimeSeconds ?? 0)}`
       : status === 'offline'
-        ? 'Start it with pnpm dev:api'
+        ? import.meta.env.DEV
+          ? 'Start it with pnpm dev:api'
+          : // e.g. a frontend-only preview deployment, where no API is connected yet.
+            'No PulseDesk API responded at /health on this deployment'
         : 'Contacting /health';
 
   return (
