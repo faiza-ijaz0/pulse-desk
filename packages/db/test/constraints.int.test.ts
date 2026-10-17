@@ -113,6 +113,36 @@ describe('referential actions', () => {
       }),
     ).rejects.toThrow(/foreign key|constraint/i);
   });
+
+  it('refuses to delete a customer who authored messages, although that check is deferred', async () => {
+    // The author is not the ticket's customer, so only the (deferred) Message → Customer
+    // foreign key can block the delete.
+    const { organization, customer } = await createOrgWithCustomer(db, 'deferred');
+    const author = await db.customer.create({
+      data: { organizationId: organization.id, email: 'cc@example.com', name: 'Cc' },
+    });
+    const ticket = await db.ticket.create({
+      data: { organizationId: organization.id, number: 1, subject: 'Hi', customerId: customer.id },
+    });
+    await db.message.create({
+      data: {
+        organizationId: organization.id,
+        ticketId: ticket.id,
+        authorType: 'CUSTOMER',
+        authorCustomerId: author.id,
+        body: 'Adding a colleague',
+      },
+    });
+
+    await expect(
+      db.customer.delete({
+        where: { organizationId_id: { organizationId: organization.id, id: author.id } },
+      }),
+    ).rejects.toThrow(/foreign key|constraint/i);
+    expect(
+      await db.customer.count({ where: { organizationId: organization.id, id: author.id } }),
+    ).toBe(1);
+  });
 });
 
 describe('hand-written constraints from the migration', () => {
