@@ -15,7 +15,8 @@ permissions:
 jobs:
   verify:
     name: Lint, typecheck, test, build
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to a new major image without notice to this repo.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     services:
@@ -34,14 +35,16 @@ jobs:
           --health-retries 10
 
     env:
-      # Throwaway credentials for the ephemeral CI service container only.
+      # Throwaway credentials for the ephemeral CI service container only. Two databases,
+      # as in local development: pulsedesk_test is wiped by the integration suite, and
+      # pulsedesk (created below) receives `db:deploy` and `db:seed` exactly as a developer runs them.
       TEST_DATABASE_URL: postgresql://pulsedesk:pulsedesk_ci_password@localhost:5432/pulsedesk_test
       DATABASE_URL: postgresql://pulsedesk:pulsedesk_ci_password@localhost:5432/pulsedesk
 
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v5
         with:
@@ -66,19 +69,30 @@ jobs:
       - name: Database integration tests (real PostgreSQL)
         run: pnpm test:integration
 
+      # The service container only creates POSTGRES_DB (pulsedesk_test).
+      - name: Create application database
+        run: docker exec ${{ job.services.postgres.id }} createdb -U pulsedesk pulsedesk
+
+      - name: Apply migrations and seed (application database)
+        run: |
+          pnpm db:deploy
+          pnpm db:seed
+          # The seed must be repeatable.
+          pnpm db:seed
+
       - name: Build
         run: pnpm build
 
   e2e:
     name: End-to-end (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify
     timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v5
         with:
@@ -99,7 +113,7 @@ jobs:
 
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: e2e/playwright-report

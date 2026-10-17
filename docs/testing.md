@@ -63,7 +63,19 @@ component tests, not percentages.
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
 1. **verify** — frozen-lockfile install → format check → lint → typecheck → unit/component
-   tests → database integration tests (PostgreSQL 17 service container) → production builds.
+   tests → database integration tests (PostgreSQL 17 service container) → `db:deploy` and
+   `db:seed` (twice, proving it is repeatable) against a separate application database →
+   production builds.
 2. **e2e** — after `verify` passes: build → Playwright (Chromium) → HTML report uploaded on failure.
+
+The service container creates only `pulsedesk_test` (`POSTGRES_DB`); the workflow creates the
+`pulsedesk` application database with `createdb` before migrating it, so `DATABASE_URL` and
+`TEST_DATABASE_URL` always point at two real, distinct databases. Runners are pinned to
+`ubuntu-24.04` so image upgrades are deliberate.
+
+**AI coding agents:** Prisma 7 refuses `prisma migrate reset` (used by the integration
+setup) when it detects an AI agent, until the user explicitly consents. It is passed by
+setting `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` to the user's consent message. Grant it
+only for disposable databases.
 
 Redis joins the CI services when the API starts using it.
