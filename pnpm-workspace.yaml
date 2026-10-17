@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'e2e'
+
+# pnpm blocks dependency lifecycle scripts unless explicitly allowed.
+# prisma's only script is a preinstall Node-version check; the client is generated
+# by packages/db's own postinstall and engines are fetched on first use.
+allowBuilds:
+  prisma: false

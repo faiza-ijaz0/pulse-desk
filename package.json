@@ -1,0 +1,45 @@
+{
+  "name": "pulsedesk",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PulseDesk — multi-tenant customer support platform",
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @pulsedesk/web --filter @pulsedesk/api run dev",
+    "dev:web": "pnpm --filter @pulsedesk/web run dev",
+    "dev:api": "pnpm --filter @pulsedesk/api run dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "test:integration": "pnpm -r --if-present run test:integration",
+    "test:e2e": "pnpm --filter @pulsedesk/e2e run e2e",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "pnpm --filter @pulsedesk/db run generate",
+    "db:migrate": "pnpm --filter @pulsedesk/db run migrate:dev",
+    "db:deploy": "pnpm --filter @pulsedesk/db run migrate:deploy",
+    "db:seed": "pnpm --filter @pulsedesk/db run seed",
+    "db:studio": "pnpm --filter @pulsedesk/db run studio",
+    "services:up": "docker compose up -d --wait",
+    "services:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.19.2",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "16.5.0",
+    "prettier": "3.9.10",
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2"
+  }
+}
