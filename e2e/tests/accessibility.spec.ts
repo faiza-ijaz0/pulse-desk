@@ -14,6 +14,17 @@ for (const theme of ['light', 'dark'] as const) {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(path);
       await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible();
+      // Framer Motion keeps opacity fades under reduced motion. Scanning mid-fade samples
+      // semi-transparent text and reports contrast failures that users never see, which made
+      // this test flaky on slower CI runners. Audit the settled UI instead.
+      await page.waitForFunction(() =>
+        document
+          .getAnimations()
+          .every(
+            (a) =>
+              a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity,
+          ),
+      );
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
