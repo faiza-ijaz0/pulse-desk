@@ -1,0 +1,354 @@
+// PulseDesk data model. Design notes: docs/architecture/data-model.md
+// The connection URL is configured in prisma.config.ts (Prisma 7), not in this file.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  AGENT
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  ON_HOLD
+  SOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketChannel {
+  WEB
+  EMAIL
+  API
+}
+
+enum MessageAuthorType {
+  AGENT
+  CUSTOMER
+  SYSTEM
+}
+
+enum MessageVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+enum TicketEventType {
+  CREATED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  ASSIGNED
+  TEAM_CHANGED
+  TAGS_CHANGED
+  MESSAGE_ADDED
+  SLA_FIRST_RESPONSE_BREACHED
+  SLA_RESOLUTION_BREACHED
+}
+
+// ───────────────────────── Global (not tenant-scoped) ─────────────────────────
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique // stored lower-cased and trimmed
+  passwordHash    String
+  name            String
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  memberships  Membership[]
+  sessions     Session[]
+  messages     Message[]
+  ticketEvents TicketEvent[]
+  auditLogs    AuditLog[]
+  invitations  Invitation[]
+}
+
+model Session {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tokenHash            String    @unique // HMAC-SHA-256(SESSION_SECRET, cookie token); raw token is never stored
+  userId               String    @db.Uuid
+  activeOrganizationId String?   @db.Uuid
+  createdAt            DateTime  @default(now())
+  lastSeenAt           DateTime  @default(now())
+  expiresAt            DateTime // absolute lifetime cap
+  revokedAt            DateTime?
+  ipAddress            String?
+  userAgent            String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Organization {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String   @unique
+  ticketSequence Int      @default(0) // per-org human ticket numbers (#1, #2, …)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memberships Membership[]
+  teams       Team[]
+  customers   Customer[]
+  tickets     Ticket[]
+  slaPolicies SlaPolicy[]
+  tags        Tag[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+}
+
+// ───────────────────────── Tenant-scoped ─────────────────────────
+// Every model below carries organizationId. Cross-entity references inside a
+// tenant use composite foreign keys (organizationId, id) so the database itself
+// rejects a row that points at another organization's data.
+//
+// Those composite FKs use onDelete: NoAction rather than Restrict. Both block deleting a
+// referenced row directly, but RESTRICT is checked immediately while NO ACTION is checked at
+// the end of the statement. That lets an Organization delete cascade through customers,
+// teams and tickets in one statement without tripping over rows that are also being deleted.
+// (Prisma cannot use SetNull here: it would null the required organizationId column too.)
+
+model Membership {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
+  role           Role     @default(AGENT)
+  createdAt      DateTime @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedTickets Ticket[]     @relation("TicketAssignee")
+  teamMemberships TeamMember[]
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Invitation {
+  id              String    @id @default(uuid()) @db.Uuid
+  organizationId  String    @db.Uuid
+  email           String
+  role            Role      @default(AGENT)
+  tokenHash       String    @unique
+  invitedByUserId String?   @db.Uuid
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, email])
+}
+
+model Team {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      TeamMember[]
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+}
+
+model TeamMember {
+  organizationId String   @db.Uuid
+  teamId         String   @db.Uuid
+  userId         String   @db.Uuid
+  createdAt      DateTime @default(now())
+
+  team       Team       @relation(fields: [organizationId, teamId], references: [organizationId, id], onDelete: Cascade)
+  membership Membership @relation(fields: [organizationId, userId], references: [organizationId, userId], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@index([organizationId, userId])
+}
+
+model Customer {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  email          String
+  name           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+  messages     Message[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, email])
+}
+
+model SlaPolicy {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  isDefault      Boolean  @default(false) // at most one per org; enforced by a partial unique index in a migration
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  targets      SlaTarget[]
+  tickets      Ticket[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+}
+
+model SlaTarget {
+  id                   String         @id @default(uuid()) @db.Uuid
+  organizationId       String         @db.Uuid
+  slaPolicyId          String         @db.Uuid
+  priority             TicketPriority
+  firstResponseMinutes Int
+  resolutionMinutes    Int
+
+  policy SlaPolicy @relation(fields: [organizationId, slaPolicyId], references: [organizationId, id], onDelete: Cascade)
+
+  @@unique([slaPolicyId, priority])
+}
+
+model Ticket {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  number         Int
+  subject        String
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(NORMAL)
+  channel        TicketChannel  @default(WEB)
+  customerId     String         @db.Uuid
+  assigneeUserId String?        @db.Uuid
+  teamId         String?        @db.Uuid
+  slaPolicyId    String?        @db.Uuid
+
+  firstResponseDueAt DateTime?
+  resolutionDueAt    DateTime?
+  firstRespondedAt   DateTime?
+  solvedAt           DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [organizationId, customerId], references: [organizationId, id], onDelete: NoAction)
+  assignee     Membership?  @relation("TicketAssignee", fields: [organizationId, assigneeUserId], references: [organizationId, userId], onDelete: NoAction)
+  team         Team?        @relation(fields: [organizationId, teamId], references: [organizationId, id], onDelete: NoAction)
+  slaPolicy    SlaPolicy?   @relation(fields: [organizationId, slaPolicyId], references: [organizationId, id], onDelete: NoAction)
+  messages     Message[]
+  events       TicketEvent[]
+  tags         TicketTag[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status, priority])
+  @@index([organizationId, assigneeUserId, status])
+  @@index([organizationId, teamId, status])
+  @@index([organizationId, resolutionDueAt])
+  @@index([organizationId, createdAt])
+}
+
+model Message {
+  id               String            @id @default(uuid()) @db.Uuid
+  organizationId   String            @db.Uuid
+  ticketId         String            @db.Uuid
+  authorType       MessageAuthorType
+  authorUserId     String?           @db.Uuid
+  authorCustomerId String?           @db.Uuid
+  visibility       MessageVisibility @default(PUBLIC)
+  body             String
+  createdAt        DateTime          @default(now())
+  editedAt         DateTime?
+
+  ticket         Ticket    @relation(fields: [organizationId, ticketId], references: [organizationId, id], onDelete: Cascade)
+  authorUser     User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  authorCustomer Customer? @relation(fields: [organizationId, authorCustomerId], references: [organizationId, id], onDelete: NoAction)
+
+  @@index([ticketId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model Tag {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  color          String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tickets      TicketTag[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, name])
+}
+
+model TicketTag {
+  organizationId String @db.Uuid
+  ticketId       String @db.Uuid
+  tagId          String @db.Uuid
+
+  ticket Ticket @relation(fields: [organizationId, ticketId], references: [organizationId, id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [organizationId, tagId], references: [organizationId, id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+  @@index([organizationId, tagId])
+}
+
+// Append-only ticket timeline; also the source of truth for analytics.
+model TicketEvent {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  ticketId       String          @db.Uuid
+  actorUserId    String?         @db.Uuid
+  type           TicketEventType
+  data           Json            @default("{}")
+  createdAt      DateTime        @default(now())
+
+  ticket Ticket @relation(fields: [organizationId, ticketId], references: [organizationId, id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([organizationId, type, createdAt])
+}
+
+// Organization-level administrative audit trail (role changes, invites, settings).
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  actorUserId    String?  @db.Uuid
+  action         String // e.g. "membership.role_changed"
+  targetType     String?
+  targetId       String?
+  metadata       Json     @default("{}")
+  ipAddress      String?
+  requestId      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
