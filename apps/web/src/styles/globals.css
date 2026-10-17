@@ -1,0 +1,292 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/* Class-based dark mode, toggled on <html> by the ThemeProvider (and the pre-paint script). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PulseDesk design tokens — see docs/design-system.md
+   Semantic tokens are CSS variables so themes swap values, never class names.
+   Colors are OKLCH: perceptually even steps make contrast predictable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces — cool, very slightly indigo-tinted neutrals. */
+  --background: oklch(0.984 0.003 286);
+  --surface: oklch(1 0 0);
+  --surface-sunken: oklch(0.967 0.004 286);
+  --surface-hover: oklch(0.955 0.005 286);
+  --surface-overlay: oklch(1 0 0);
+
+  /* Text */
+  --foreground: oklch(0.22 0.018 285);
+  --muted-foreground: oklch(0.45 0.016 285);
+  --subtle-foreground: oklch(0.52 0.013 285);
+
+  /* Lines */
+  --border: oklch(0.918 0.005 286);
+  --border-strong: oklch(0.86 0.008 286);
+  --input: oklch(0.87 0.008 286);
+
+  /* Brand accent — restrained indigo-violet. */
+  --accent: oklch(0.51 0.205 278);
+  --accent-hover: oklch(0.46 0.2 278);
+  --accent-foreground: oklch(0.99 0.005 278);
+  --accent-subtle: oklch(0.958 0.024 280);
+  --accent-subtle-foreground: oklch(0.44 0.19 278);
+  --ring: oklch(0.58 0.19 278);
+
+  /* Status — paired subtle backgrounds and AA-contrast foregrounds. */
+  --success: oklch(0.56 0.13 156);
+  --success-subtle: oklch(0.962 0.03 160);
+  --success-foreground: oklch(0.42 0.1 156);
+  --warning: oklch(0.72 0.15 70);
+  --warning-subtle: oklch(0.968 0.04 85);
+  --warning-foreground: oklch(0.47 0.11 60);
+  --danger: oklch(0.56 0.2 25);
+  --danger-hover: oklch(0.51 0.2 25);
+  --danger-subtle: oklch(0.963 0.022 20);
+  --danger-foreground: oklch(0.48 0.18 25);
+  --info: oklch(0.58 0.14 240);
+  --info-subtle: oklch(0.962 0.022 240);
+  --info-foreground: oklch(0.45 0.12 245);
+
+  /* Data-viz categorical slots — validated (dataviz validate_palette.js) on the light surface. */
+  --chart-1: #5048e5;
+  --chart-2: #179a6c;
+
+  /* Elevation — soft, layered, tinted with the neutral hue rather than pure black. */
+  --elevation-color: 285 30% 18%;
+  --elevation-xs: 0 1px 2px hsl(var(--elevation-color) / 0.05);
+  --elevation-sm:
+    0 1px 2px hsl(var(--elevation-color) / 0.06), 0 1px 3px hsl(var(--elevation-color) / 0.05);
+  --elevation-md:
+    0 2px 4px -1px hsl(var(--elevation-color) / 0.06),
+    0 6px 16px -4px hsl(var(--elevation-color) / 0.1);
+  --elevation-lg:
+    0 4px 8px -2px hsl(var(--elevation-color) / 0.06),
+    0 20px 40px -8px hsl(var(--elevation-color) / 0.18);
+  --highlight: inset 0 1px 0 oklch(1 0 0 / 0.6);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.158 0.008 285);
+  --surface: oklch(0.192 0.009 285);
+  --surface-sunken: oklch(0.142 0.008 285);
+  --surface-hover: oklch(0.235 0.01 285);
+  --surface-overlay: oklch(0.215 0.01 285);
+
+  --foreground: oklch(0.955 0.004 286);
+  --muted-foreground: oklch(0.72 0.012 286);
+  --subtle-foreground: oklch(0.64 0.012 286);
+
+  --border: oklch(0.275 0.01 285);
+  --border-strong: oklch(0.34 0.012 285);
+  --input: oklch(0.34 0.012 285);
+
+  --accent: oklch(0.54 0.2 278);
+  --accent-hover: oklch(0.5 0.2 278);
+  --accent-foreground: oklch(0.99 0.005 278);
+  --accent-subtle: oklch(0.28 0.06 280);
+  --accent-subtle-foreground: oklch(0.83 0.09 280);
+  --ring: oklch(0.68 0.16 278);
+
+  --success: oklch(0.68 0.14 156);
+  --success-subtle: oklch(0.26 0.045 160);
+  --success-foreground: oklch(0.82 0.12 156);
+  --warning: oklch(0.78 0.14 75);
+  --warning-subtle: oklch(0.28 0.05 75);
+  --warning-foreground: oklch(0.86 0.12 80);
+  --danger: oklch(0.56 0.19 25);
+  --danger-hover: oklch(0.52 0.19 25);
+  --danger-subtle: oklch(0.27 0.06 20);
+  --danger-foreground: oklch(0.8 0.12 22);
+  --info: oklch(0.68 0.13 240);
+  --info-subtle: oklch(0.26 0.045 240);
+  --info-foreground: oklch(0.82 0.09 240);
+
+  --chart-1: #7a73f0;
+  --chart-2: #199e70;
+
+  --elevation-color: 285 40% 3%;
+  --elevation-xs: 0 1px 2px hsl(var(--elevation-color) / 0.4);
+  --elevation-sm: 0 1px 3px hsl(var(--elevation-color) / 0.45);
+  --elevation-md: 0 6px 16px -4px hsl(var(--elevation-color) / 0.55);
+  --elevation-lg: 0 24px 48px -12px hsl(var(--elevation-color) / 0.7);
+  --highlight: inset 0 1px 0 oklch(1 0 0 / 0.05);
+}
+
+/* Map semantic variables onto Tailwind utilities (bg-surface, text-muted-foreground, …). */
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-subtle-foreground: var(--accent-subtle-foreground);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+
+  --shadow-xs: var(--elevation-xs);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+}
+
+/* Static scales: typography, radii, motion. Spacing uses Tailwind's 4px base unit. */
+@theme {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', 'Cascadia Code', monospace;
+
+  /* A dense-but-readable product scale (13px body for data-heavy views). */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: 1.875rem;
+  --text-3xl: 1.75rem;
+  --text-3xl--line-height: 2.25rem;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+
+  --animate-overlay-in: overlay-in 160ms var(--ease-out-quint);
+  --animate-overlay-out: overlay-out 120ms ease-in;
+  --animate-pop-in: pop-in 180ms var(--ease-out-quint);
+  --animate-pop-out: pop-out 120ms ease-in;
+  --animate-drawer-in: drawer-in 260ms var(--ease-out-quint);
+  --animate-drawer-out: drawer-out 180ms ease-in;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes overlay-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.97);
+    }
+  }
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes drawer-in {
+    from {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes drawer-out {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background font-sans text-base text-foreground antialiased;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--accent) 22%, transparent);
+  }
+  /* One consistent, highly visible focus ring for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  [data-numeric],
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Respect the user's motion preference everywhere, including Radix keyframe animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
