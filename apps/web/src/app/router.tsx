@@ -1,5 +1,6 @@
 import { Navigate, createBrowserRouter, type RouteObject } from 'react-router';
 import { AppShell } from '@/components/layout/app-shell';
+import { RequireAuth } from '@/features/auth/require-auth';
 import { NotFoundPage, RouteErrorPage } from '@/pages/not-found-page';
 import { PlannedPage } from '@/pages/planned-page';
 import { NAV_ITEMS } from './navigation';
@@ -8,8 +9,22 @@ import { NAV_ITEMS } from './navigation';
 // initial bundle to the shell and shared vendor code.
 export const routes: RouteObject[] = [
   {
+    path: '/login',
+    errorElement: <RouteErrorPage />,
+    lazy: async () => ({ Component: (await import('@/features/auth/login-page')).LoginPage }),
+  },
+  {
+    path: '/signup',
+    errorElement: <RouteErrorPage />,
+    lazy: async () => ({ Component: (await import('@/features/auth/signup-page')).SignupPage }),
+  },
+  {
     path: '/',
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },

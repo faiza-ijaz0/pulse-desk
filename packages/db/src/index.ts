@@ -4,6 +4,7 @@ export {
   type Database,
   type TransactionClient,
 } from './client.ts';
+export { databaseUnavailableCode, prismaErrorCode } from './errors.ts';
 export { loadWorkspaceEnv } from './env.ts';
 export {
   TENANT_SCOPED_MODELS,

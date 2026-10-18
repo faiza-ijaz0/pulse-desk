@@ -15,10 +15,10 @@ Windows, Homebrew on macOS, your distro package on Linux) and point `.env` at it
 
 ### What runs without which service
 
-| Service missing | Still works                                                                                            | Doesn't work                                                           |
-| --------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| PostgreSQL      | Web app, API (`/health` doesn't touch the DB), `pnpm check` (lint, typecheck, unit tests, builds), E2E | `db:migrate`, `db:seed`, `db:studio`, `pnpm test:integration`          |
-| Redis           | Everything in this phase                                                                               | — (the API uses an in-memory rate-limit store until Redis is wired in) |
+| Service missing | Still works                                                                             | Doesn't work                                                                           |
+| --------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| PostgreSQL      | `pnpm check` (lint, typecheck, unit tests, builds); the API starts and serves `/health` | Signing in or up (so every app page), `db:*`, `pnpm test:integration`, `pnpm test:e2e` |
+| Redis           | Everything in this phase                                                                | — (the API uses an in-memory rate-limit store until Redis is wired in)                 |
 
 ## First-time setup
 
@@ -72,31 +72,32 @@ slug and user email), so it is safe to run repeatedly. It refuses to run when
 
 `riley@pulsedesk.test` belongs to **both** organizations with different roles, to exercise
 multi-tenant isolation. Every seeded user has the development-only password
-`pulsedesk-dev-password` (hashed with Argon2id). Login itself arrives in Phase 3. All
-names are fictional; user emails use the reserved `.test` TLD and customers use `example.com`.
+`pulsedesk-dev-password` (hashed with Argon2id) and can sign in at `/login`; `riley@pulsedesk.test`
+can switch between both organizations from the sidebar. You can also create a fresh account
+and organization at `/signup`. All names are fictional; user emails use the reserved `.test` TLD and customers use `example.com`.
 
 ## Commands
 
 All commands run from the repository root.
 
-| Command                              | What it does                                                                                                                           |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                           | Web (Vite) and API (tsx watch) together                                                                                                |
-| `pnpm dev:web` / `dev:api`           | One app only                                                                                                                           |
-| `pnpm check`                         | **The quality gate:** format check → lint → typecheck → unit tests → production builds. Stops at the first failure and exits non-zero. |
-| `pnpm format` / `format:check`       | Prettier write / verify                                                                                                                |
-| `pnpm lint` / `lint:fix`             | ESLint (type-aware, accessibility and architecture-boundary rules), zero warnings allowed                                              |
-| `pnpm typecheck`                     | `tsc --noEmit` in every workspace (regenerates the Prisma client first)                                                                |
-| `pnpm test`                          | Unit and component tests (Vitest) — no external services needed                                                                        |
-| `pnpm test:integration`              | Database tests against a real PostgreSQL (`TEST_DATABASE_URL`, wiped on every run)                                                     |
-| `pnpm test:e2e`                      | Playwright against production builds — run `pnpm build` first; first time also `pnpm --filter @pulsedesk/e2e run install-browsers`     |
-| `pnpm build`                         | Production builds (`apps/api/dist`, `apps/web/dist`)                                                                                   |
-| `pnpm db:generate`                   | Regenerate the Prisma client                                                                                                           |
-| `pnpm db:migrate`                    | `prisma migrate dev` — create a new migration after editing `schema.prisma`                                                            |
-| `pnpm db:deploy`                     | `prisma migrate deploy` — apply committed migrations                                                                                   |
-| `pnpm db:seed`                       | Load demo data                                                                                                                         |
-| `pnpm db:studio`                     | Prisma Studio                                                                                                                          |
-| `pnpm services:up` / `services:down` | Optional Docker services                                                                                                               |
+| Command                              | What it does                                                                                                                                                                                                    |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                           | Web (Vite) and API (tsx watch) together                                                                                                                                                                         |
+| `pnpm dev:web` / `dev:api`           | One app only                                                                                                                                                                                                    |
+| `pnpm check`                         | **The quality gate:** format check → lint → typecheck → unit tests → production builds. Stops at the first failure and exits non-zero.                                                                          |
+| `pnpm format` / `format:check`       | Prettier write / verify                                                                                                                                                                                         |
+| `pnpm lint` / `lint:fix`             | ESLint (type-aware, accessibility and architecture-boundary rules), zero warnings allowed                                                                                                                       |
+| `pnpm typecheck`                     | `tsc --noEmit` in every workspace (regenerates the Prisma client first)                                                                                                                                         |
+| `pnpm test`                          | Unit and component tests (Vitest) — no external services needed                                                                                                                                                 |
+| `pnpm test:integration`              | Database tests against a real PostgreSQL (`TEST_DATABASE_URL`, wiped on every run)                                                                                                                              |
+| `pnpm test:e2e`                      | Playwright against production builds (API on :4100, so a running dev API is never reused) and `TEST_DATABASE_URL` — run `pnpm build` first; first time also `pnpm --filter @pulsedesk/e2e run install-browsers` |
+| `pnpm build`                         | Production builds (`apps/api/dist`, `apps/web/dist`)                                                                                                                                                            |
+| `pnpm db:generate`                   | Regenerate the Prisma client                                                                                                                                                                                    |
+| `pnpm db:migrate`                    | `prisma migrate dev` — create a new migration after editing `schema.prisma`                                                                                                                                     |
+| `pnpm db:deploy`                     | `prisma migrate deploy` — apply committed migrations                                                                                                                                                            |
+| `pnpm db:seed`                       | Load demo data                                                                                                                                                                                                  |
+| `pnpm db:studio`                     | Prisma Studio                                                                                                                                                                                                   |
+| `pnpm services:up` / `services:down` | Optional Docker services                                                                                                                                                                                        |
 
 `pnpm check` deliberately excludes `test:integration` and `test:e2e` because they need
 PostgreSQL and a browser; CI runs both on every push (see `.github/workflows/ci.yml`).
@@ -116,6 +117,13 @@ Per workspace: `pnpm --filter @pulsedesk/api <script>`.
 - Only `VITE_`-prefixed variables can reach the browser bundle. They must never hold secrets.
 
 ## Troubleshooting
+
+- **Sign-up or sign-in says "PulseDesk is temporarily unavailable"** (API `503 SERVICE_UNAVAILABLE`,
+  logged as `Database unavailable` with `errorCode` `P1000`/`P1001`). The API is running but
+  can't use PostgreSQL. `curl http://127.0.0.1:4000/health/ready` confirms it. PostgreSQL's own
+  log (`<data dir>/log/`) says why: `Role "pulsedesk" does not exist` means the setup SQL above
+  was never applied. Run it in an interactive terminal: `psql` must be able to prompt for the
+  `postgres` password, so non-interactive shells (such as an AI assistant's `!` command) can't do it.
 
 - **`prisma migrate diff` prints nothing.** Prisma 7's schema engine needs a datasource even
   for offline diffs; without `DATABASE_URL` it silently outputs nothing. Set it (any syntactically

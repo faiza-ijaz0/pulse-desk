@@ -1,3 +1,4 @@
+import { databaseUnavailableCode, prismaErrorCode } from '@pulsedesk/db';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 import { AppError } from '../errors.ts';
 import { sendProblem } from '../problem.ts';
@@ -68,7 +69,26 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, req, res, next
     }
   }
 
-  req.log.error({ err: error }, 'Unhandled error while processing request');
+  // An outage, not a bug: say so (503) without detail, and log the code operators need.
+  // Logs carry the request ID (bound to req.log) and the Prisma error code, never the
+  // connection string; Prisma's messages name the user and host but not the password.
+  const unavailable = databaseUnavailableCode(error);
+  if (unavailable !== undefined) {
+    req.log.error({ err: error, errorCode: unavailable }, 'Database unavailable');
+    res.set('Retry-After', '30');
+    sendProblem(req, res, {
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      title: 'Service temporarily unavailable',
+      detail: 'PulseDesk can’t complete this request right now. Try again in a few minutes.',
+    });
+    return;
+  }
+
+  req.log.error(
+    { err: error, errorCode: prismaErrorCode(error) ?? 'UNHANDLED' },
+    'Unhandled error while processing request',
+  );
   sendProblem(req, res, {
     status: 500,
     code: 'INTERNAL_ERROR',

@@ -66,7 +66,7 @@ jobs:
       - name: Unit & component tests
         run: pnpm test
 
-      - name: Database integration tests (real PostgreSQL)
+      - name: Database and API integration tests (real PostgreSQL)
         run: pnpm test:integration
 
       # The service container only creates POSTGRES_DB (pulsedesk_test).
@@ -88,6 +88,27 @@ jobs:
     runs-on: ubuntu-24.04
     needs: verify
     timeout-minutes: 20
+
+    # The suite signs up real users through the API, so it needs a disposable database.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pulsedesk
+          POSTGRES_PASSWORD: pulsedesk_ci_password
+          POSTGRES_DB: pulsedesk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pulsedesk -d pulsedesk_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Throwaway credentials for the ephemeral service container. Playwright migrates this
+      # database before starting the API (e2e/playwright.config.ts).
+      TEST_DATABASE_URL: postgresql://pulsedesk:pulsedesk_ci_password@localhost:5432/pulsedesk_test
 
     steps:
       - uses: actions/checkout@v5

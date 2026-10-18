@@ -4,5 +4,6 @@ dist/
 coverage/
 playwright-report/
 test-results/
+**/playwright/.auth/
 packages/db/src/generated/
 packages/db/prisma/migrations/

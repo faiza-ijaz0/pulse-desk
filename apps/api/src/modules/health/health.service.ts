@@ -1,11 +1,10 @@
-import type { HealthResponse } from '@pulsedesk/shared';
-
-export type Clock = { now: () => Date };
+import type { HealthResponse, ReadinessResponse } from '@pulsedesk/shared';
+import type { Clock } from '../../lib/clock.ts';
+import type { Logger } from '../../lib/logger.ts';
 
 /**
- * Liveness only: "is this process able to serve HTTP?" It deliberately does not check
- * PostgreSQL or Redis — a dependency outage must not make the orchestrator restart
- * healthy API processes. Readiness (with dependency checks) arrives with those dependencies.
+ * Liveness: "is this process able to serve HTTP?" It deliberately does not check PostgreSQL
+ * or Redis, so a dependency outage never makes the orchestrator restart healthy processes.
  */
 export function createHealthService(deps: { clock: Clock; startedAt: Date; version: string }) {
   return {
@@ -23,3 +22,27 @@ export function createHealthService(deps: { clock: Clock; startedAt: Date; versi
 }
 
 export type HealthService = ReturnType<typeof createHealthService>;
+
+/**
+ * Readiness: "can this instance serve real requests?" — i.e. can it reach PostgreSQL. Load
+ * balancers use it to route traffic, and deploys use it to verify the database before users
+ * do. Failures are logged with their cause; the response never contains it.
+ */
+export function createReadinessService(deps: {
+  checkDatabase: () => Promise<unknown>;
+  logger: Logger;
+}) {
+  return {
+    async getReadiness(): Promise<ReadinessResponse> {
+      try {
+        await deps.checkDatabase();
+        return { status: 'ready', checks: { database: 'ok' } };
+      } catch (error) {
+        deps.logger.error({ err: error }, 'Readiness check failed: database unavailable');
+        return { status: 'unavailable', checks: { database: 'unavailable' } };
+      }
+    },
+  };
+}
+
+export type ReadinessService = ReturnType<typeof createReadinessService>;

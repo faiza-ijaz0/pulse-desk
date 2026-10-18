@@ -64,6 +64,9 @@ export default defineConfig(({ command, mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
       css: false,
+      // Form tests type real keystrokes through user-event in jsdom, which can exceed the
+      // 5 s default when `pnpm check` runs every workspace's tests in parallel.
+      testTimeout: 15_000,
     },
   };
 });

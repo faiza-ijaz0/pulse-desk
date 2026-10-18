@@ -1,7 +1,10 @@
 import { createServer } from 'node:http';
+import { createPrismaClient } from '@pulsedesk/db';
+import { createApiRouter } from './api-router.ts';
 import { createApp } from './app.ts';
 import { parseEnv } from './config/env.ts';
 import { createLogger } from './lib/logger.ts';
+import { systemClock } from './lib/clock.ts';
 import { createShutdown, registerProcessHandlers } from './lib/lifecycle.ts';
 import { loadEnvFile } from './lib/load-env-file.ts';
 
@@ -30,11 +33,28 @@ async function main(): Promise<void> {
     ...(prettyStream && { destination: prettyStream }),
   });
 
-  const server = createServer(createApp({ env, logger }));
+  // Prisma connects lazily, so a database outage doesn't stop the process from starting
+  // (GET /health stays liveness-only); requests that need the database fail with a 503.
+  const db = createPrismaClient({ connectionString: env.DATABASE_URL });
+  const apiRouter = createApiRouter({ env, db, logger, clock: systemClock });
+  const server = createServer(
+    createApp({
+      env,
+      logger,
+      clock: systemClock,
+      apiRouter,
+      checkDatabase: () => db.$queryRaw`SELECT 1`,
+    }),
+  );
   server.keepAliveTimeout = 65_000; // longer than typical load-balancer idle timeouts
   server.headersTimeout = 66_000;
 
-  const shutdown = createShutdown({ server, logger, timeoutMs: env.SHUTDOWN_TIMEOUT_MS });
+  const shutdown = createShutdown({
+    server,
+    logger,
+    timeoutMs: env.SHUTDOWN_TIMEOUT_MS,
+    onClose: () => db.$disconnect(),
+  });
   registerProcessHandlers(shutdown, logger);
 
   server.on('error', (error) => {

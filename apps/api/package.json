@@ -8,14 +8,20 @@
     "build": "tsx scripts/build.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration"
   },
   "dependencies": {
+    "@node-rs/argon2": "2.2.2",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "@pulsedesk/db": "workspace:*",
     "@pulsedesk/shared": "workspace:*",
     "cors": "2.8.6",
     "express": "5.3.0",
     "express-rate-limit": "8.7.1",
     "helmet": "8.3.0",
+    "pg": "8.23.1",
     "pino": "10.4.0",
     "pino-http": "11.0.0",
     "zod": "4.6.7"

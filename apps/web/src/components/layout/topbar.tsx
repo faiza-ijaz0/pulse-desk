@@ -1,5 +1,5 @@
-import { Keyboard, LogIn, Menu, Monitor, Moon, Search, Sun, UserRound } from 'lucide-react';
-import { useLocation } from 'react-router';
+import { Keyboard, LogOut, Menu, Monitor, Moon, Search, Sun } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router';
 import { findNavItem } from '@/app/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +13,10 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Kbd } from '@/components/ui/misc';
+import { Avatar, Kbd } from '@/components/ui/misc';
 import { Tooltip } from '@/components/ui/tooltip';
+import { ROLE_LABELS } from '@/features/auth/role-label';
+import { useActiveSession, useLogout } from '@/features/auth/session';
 import { useTheme, type ThemePreference } from '@/lib/theme';
 import { BrandMark } from './brand';
 
@@ -56,23 +58,31 @@ function ThemeMenu() {
   );
 }
 
-/**
- * Authentication arrives in Phase 3. The profile menu says so plainly rather than
- * impersonating a signed-in user; its working items are the shortcuts reference.
- */
+/** The signed-in user's menu: who they are, where they are, and signing out. */
 function ProfileMenu({ onShowShortcuts }: { onShowShortcuts: () => void }) {
+  const { user, activeOrganization } = useActiveSession();
+  const logout = useLogout();
+  const navigate = useNavigate();
+
+  function signOut() {
+    logout.mutate(undefined, { onSettled: () => void navigate('/login', { replace: true }) });
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex size-8 items-center justify-center rounded-full border border-border bg-surface-sunken text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground data-[state=open]:border-border-strong"
-        aria-label="Account menu"
+        className="flex size-8 items-center justify-center rounded-full transition-shadow hover:ring-2 hover:ring-border-strong data-[state=open]:ring-2 data-[state=open]:ring-border-strong"
+        aria-label={`Account menu for ${user.name}`}
       >
-        <UserRound className="size-4" aria-hidden="true" />
+        <Avatar name={user.name} className="ring-0" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
+      <DropdownMenuContent align="end" className="w-64">
         <div className="px-2 py-2">
-          <p className="text-sm font-medium">Not signed in</p>
-          <p className="text-xs text-muted-foreground">You’re viewing the UI preview.</p>
+          <p className="truncate text-sm font-medium">{user.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          <p className="mt-1.5 truncate text-xs text-muted-foreground">
+            {ROLE_LABELS[activeOrganization.role]} · {activeOrganization.name}
+          </p>
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onShowShortcuts}>
@@ -81,12 +91,9 @@ function ProfileMenu({ onShowShortcuts }: { onShowShortcuts: () => void }) {
           <DropdownMenuShortcut>?</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled className="h-auto items-start py-2">
-          <LogIn className="mt-0.5" aria-hidden="true" />
-          <span className="grid gap-0.5">
-            <span>Sign in</span>
-            <span className="text-xs text-muted-foreground">Arrives in Phase 3</span>
-          </span>
+        <DropdownMenuItem onSelect={signOut} disabled={logout.isPending}>
+          <LogOut aria-hidden="true" />
+          {logout.isPending ? 'Signing out…' : 'Sign out'}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -104,6 +111,7 @@ export function Topbar({
 }) {
   const { pathname } = useLocation();
   const current = findNavItem(pathname);
+  const { activeOrganization } = useActiveSession();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 md:px-6">
@@ -119,7 +127,7 @@ export function Topbar({
       <BrandMark className="size-6 md:hidden" />
 
       <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
-        <span className="text-muted-foreground">Preview workspace</span>
+        <span className="truncate text-muted-foreground">{activeOrganization.name}</span>
         {current && (
           <>
             <span className="text-subtle-foreground" aria-hidden="true">

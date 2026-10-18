@@ -71,3 +71,49 @@ export class ConflictError extends AppError {
     super({ status: 409, code: 'CONFLICT', title: 'Conflict', detail });
   }
 }
+
+/** One message for unknown email and wrong password alike, so login can't enumerate accounts. */
+export class InvalidCredentialsError extends AppError {
+  constructor() {
+    super({
+      status: 401,
+      code: 'INVALID_CREDENTIALS',
+      title: 'Invalid credentials',
+      detail: 'Incorrect email or password.',
+    });
+  }
+}
+
+export class NoActiveOrganizationError extends AppError {
+  constructor() {
+    super({
+      status: 403,
+      code: 'NO_ACTIVE_ORGANIZATION',
+      title: 'No active organization',
+      detail: 'Choose an organization you belong to before continuing.',
+    });
+  }
+}
+
+export class EmailTakenError extends AppError {
+  constructor() {
+    super({
+      status: 409,
+      code: 'EMAIL_TAKEN',
+      title: 'Email already registered',
+      detail: 'An account with this email already exists. Sign in instead.',
+      fieldErrors: [{ path: 'body.email', message: 'An account with this email already exists' }],
+    });
+  }
+}
+
+export class LastOwnerError extends AppError {
+  constructor() {
+    super({
+      status: 409,
+      code: 'LAST_OWNER',
+      title: 'Organization needs an owner',
+      detail: 'Every organization must keep at least one owner. Promote another member first.',
+    });
+  }
+}

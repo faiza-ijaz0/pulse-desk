@@ -2,6 +2,25 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+    projects: [
+      {
+        test: {
+          name: 'unit',
+          include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+          exclude: ['test/**/*.int.test.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'integration',
+          include: ['test/**/*.int.test.ts'],
+          globalSetup: ['test/integration/global-setup.ts'],
+          // One shared database: run files serially.
+          fileParallelism: false,
+          testTimeout: 30_000,
+          hookTimeout: 120_000,
+        },
+      },
+    ],
   },
 });

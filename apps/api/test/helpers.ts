@@ -6,8 +6,17 @@ import { createLogger } from '../src/lib/logger.ts';
 
 export const WEB_ORIGIN = 'http://localhost:5173';
 
+/** Test-only values. Unit tests never connect to this database; Prisma connects lazily. */
+export const TEST_ENV_DEFAULTS = {
+  NODE_ENV: 'test',
+  LOG_LEVEL: 'info',
+  WEB_ORIGIN,
+  DATABASE_URL: 'postgresql://unused:unused@127.0.0.1:1/unused',
+  SESSION_SECRET: 'test-session-secret-0123456789abcdef0123456789',
+} as const;
+
 export function testEnv(overrides: Record<string, string> = {}): Env {
-  const result = parseEnv({ NODE_ENV: 'test', LOG_LEVEL: 'info', WEB_ORIGIN, ...overrides });
+  const result = parseEnv({ ...TEST_ENV_DEFAULTS, ...overrides });
   if (!result.ok) throw new Error(`Invalid test env: ${result.problems.join('; ')}`);
   return result.env;
 }
@@ -26,7 +35,13 @@ export function captureLogs() {
   return { lines, stream, text: () => lines.map((l) => JSON.stringify(l)).join('\n') };
 }
 
-export function buildTestApp(options: { env?: Record<string, string>; apiRouter?: Router } = {}) {
+export function buildTestApp(
+  options: {
+    env?: Record<string, string>;
+    apiRouter?: Router;
+    checkDatabase?: () => Promise<unknown>;
+  } = {},
+) {
   const env = testEnv(options.env);
   const logs = captureLogs();
   const logger = createLogger({
@@ -38,6 +53,7 @@ export function buildTestApp(options: { env?: Record<string, string>; apiRouter?
     env,
     logger,
     ...(options.apiRouter && { apiRouter: options.apiRouter }),
+    ...(options.checkDatabase && { checkDatabase: options.checkDatabase }),
   });
   return { app, logs, env };
 }

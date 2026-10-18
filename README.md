@@ -4,10 +4,11 @@
 manage support tickets, customer conversations, support agents and teams,
 service-level agreements (SLAs), and team analytics.
 
-> **Project status: Phase 2 — application skeleton, design system and quality gates.**
-> The web app shell, design system, API foundation, database schema, migration and seed
-> exist and are tested. Product features (sign-in, tickets, SLAs, analytics) are not built
-> yet. The dashboard shows clearly-labelled **sample data**. See [Roadmap](#roadmap).
+> **Project status: Phase 3 — authentication and organizations.**
+> Sign-up (which creates your organization), sign-in, sign-out, session restore, organization
+> switching, tenant isolation and role enforcement work end to end against PostgreSQL. Tickets,
+> SLAs and analytics are not built yet; the dashboard shows clearly-labelled **sample data**.
+> See [Roadmap](#roadmap).
 
 ## Planned features
 
@@ -26,7 +27,7 @@ service-level agreements (SLAs), and team analytics.
 | Frontend        | React 19, TypeScript, Vite 8, React Router 8, Tailwind CSS 4, shadcn/ui-style components on Radix, Framer Motion, TanStack Query |
 | Backend         | Node.js 24, Express 5, TypeScript, Zod, pino, helmet                                                                             |
 | Database        | PostgreSQL + Prisma ORM 7                                                                                                        |
-| Auth (Phase 3)  | Server-managed sessions in PostgreSQL, HttpOnly cookies, Argon2id                                                                |
+| Auth            | Server-managed sessions in PostgreSQL, HttpOnly cookies, Argon2id                                                                |
 | Real-time, jobs | Socket.IO, Redis + BullMQ (later phases)                                                                                         |
 | Testing         | Vitest, React Testing Library, Supertest, Playwright + axe                                                                       |
 | Tooling         | pnpm workspaces, ESLint (type-aware + jsx-a11y), Prettier, GitHub Actions                                                        |
@@ -82,7 +83,7 @@ pnpm build && pnpm test:e2e
 | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
 | **1 — Foundation** ✅               | Architecture, data model, auth design, conventions                                              |
 | **2 — Skeleton & quality gates** ✅ | Monorepo, design system and app shell, API foundation, schema + migration + seed, tests, CI     |
-| **3 — Auth & organizations**        | Sign-in, sessions, org switching, memberships, invitations, RBAC, cross-tenant API test harness |
+| **3 — Auth & organizations** 🚧     | Sign-in, sessions, org switching, memberships, invitations, RBAC, cross-tenant API test harness |
 | **4 — Tickets & conversations**     | Ticket inbox, messages and notes, assignment, tags, filters, Socket.IO live updates             |
 | **5 — SLAs & jobs**                 | Redis + BullMQ, SLA policies, due-date calculation, breach detection, notifications             |
 | **6 — Analytics & polish**          | Live dashboards, accessibility audit, performance, PostgreSQL RLS defense-in-depth              |

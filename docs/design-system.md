@@ -60,8 +60,9 @@ style: source lives in the repo, accessible behavior comes from Radix primitives
 | ≥ 1024px   | 248px sidebar, collapsible to the rail (button or `[`), remembered per browser.                                                       |
 
 The shell provides a skip link, `main`/`nav`/`aside` landmarks, a breadcrumb, a ⌘K/Ctrl+K
-command menu (ARIA combobox), a theme menu (light / dark / system), and an honest workspace
-switcher and account menu that state what arrives with authentication in Phase 3.
+command menu (ARIA combobox), a theme menu (light / dark / system), an organization switcher listing the signed-in
+user’s real memberships, and an account menu with sign-out. Sign-in and sign-up use a
+separate two-column auth layout (form plus a product panel on wide screens).
 
 ## Motion
 

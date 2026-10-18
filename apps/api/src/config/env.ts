@@ -33,6 +33,12 @@ const originList = z
 
 const port = z.coerce.number().int().min(1).max(65_535);
 const positiveInt = z.coerce.number().int().positive();
+const booleanString = z
+  .enum(['true', 'false'], { error: 'must be "true" or "false"' })
+  .transform((value) => value === 'true');
+
+/** The value shipped in .env.example. Accepted only in development. */
+export const PLACEHOLDER_SESSION_SECRET = 'replace-me-with-a-random-32-plus-character-value';
 
 export const envSchema = z
   .object({
@@ -45,11 +51,57 @@ export const envSchema = z
     WEB_ORIGIN: originList,
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
 
+    DATABASE_URL: z
+      .string()
+      .trim()
+      .regex(/^postgres(ql)?:\/\//, 'must be a postgresql:// connection URL'),
+
+    SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
+    // RFC 6265 cookie-name token characters only.
+    SESSION_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/, 'must be a valid cookie name')
+      .default('pd_sid'),
+    SESSION_COOKIE_SECURE: booleanString.default(false),
+    SESSION_IDLE_TIMEOUT_MINUTES: positiveInt.max(60 * 24 * 30).default(720),
+    SESSION_ABSOLUTE_TIMEOUT_DAYS: positiveInt.max(90).default(14),
+
     RATE_LIMIT_GLOBAL_PER_MINUTE: positiveInt.default(300),
+    RATE_LIMIT_AUTH_PER_15_MINUTES: positiveInt.default(10),
     SHUTDOWN_TIMEOUT_MS: positiveInt.default(10_000),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV !== 'development' && env.SESSION_SECRET === PLACEHOLDER_SESSION_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SESSION_SECRET'],
+        message: 'must be replaced with a random value outside development',
+      });
+    }
+    // Browsers silently drop __Host-/__Secure- cookies that lack the Secure flag.
+    if (/^__(Host|Secure)-/.test(env.SESSION_COOKIE_NAME) && !env.SESSION_COOKIE_SECURE) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SESSION_COOKIE_SECURE'],
+        message: 'must be true when SESSION_COOKIE_NAME uses the __Host- or __Secure- prefix',
+      });
+    }
     if (env.NODE_ENV === 'production') {
+      if (!env.SESSION_COOKIE_SECURE) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SESSION_COOKIE_SECURE'],
+          message: 'must be true in production',
+        });
+      }
+      // __Host- pins the cookie to this exact host, over HTTPS, for every path.
+      if (!env.SESSION_COOKIE_NAME.startsWith('__Host-')) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SESSION_COOKIE_NAME'],
+          message: 'must use the __Host- prefix in production (e.g. __Host-pd_sid)',
+        });
+      }
       for (const origin of env.WEB_ORIGIN) {
         if (!origin.startsWith('https://')) {
           ctx.addIssue({

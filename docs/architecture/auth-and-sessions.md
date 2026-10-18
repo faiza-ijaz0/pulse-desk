@@ -1,8 +1,10 @@
 # Authentication and Session Security
 
-> Status: design. Implemented so far (Phase 2): the Origin/Referer CSRF check and the
-> JSON-only request body rule from §5, and the in-memory global rate limit from §8.
-> Sessions, login and RBAC enforcement arrive in Phase 3.
+> Status: **implemented in Phase 3**: registration, login, logout, session restoration,
+> organization switching, tenant context and RBAC enforcement. Not yet built: "log out other
+> devices", password change/reset, invitations, the expired-session cleanup job (needs
+> BullMQ) and Socket.IO auth (§7). Endpoints and the decisions made while implementing are in
+> [§10](#10-implementation-phase-3).
 
 ## 1. Approach
 
@@ -25,7 +27,7 @@ auditable record of active logins.
 ## 3. Session lifecycle
 
 ```
-POST /api/auth/login  { email, password }
+POST /api/v1/auth/login  { email, password }
   1. Rate-limit check (per IP and per email)
   2. Verify password (Argon2id)
   3. token = randomBytes(32) → base64url        (256 bits of entropy)
@@ -33,7 +35,7 @@ POST /api/auth/login  { email, password }
                       userId, activeOrganizationId, expiresAt = now + absolute TTL,
                       ipAddress, userAgent }
   5. Set-Cookie: <name>=<token>; HttpOnly; Secure; SameSite=Lax; Path=/
-  6. 200 { user, memberships, activeOrganization }
+  6. 200 { user, organizations, activeOrganization }
 ```
 
 **On every request**, the session middleware:
@@ -139,3 +141,54 @@ Cookie authentication needs CSRF defense. PulseDesk layers three:
 - MFA (TOTP)
 - SSO (OIDC/SAML)
 - Customer portal logins (customers are contacts, not users, in v1)
+
+## 10. Implementation (Phase 3)
+
+### Endpoints
+
+All under `/api/v1`, JSON only, errors as RFC 9457 problem documents. Mutating requests need an
+allowlisted `Origin` (§5). The organization is never in a URL: it is the session's active one.
+
+| Method & path                    | Requires                      | Purpose                                                                                                                                             |
+| -------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /auth/register`            | —                             | Creates user, organization, `OWNER` membership, audit entry and session in **one transaction**; `201` with the session body and cookie.             |
+| `POST /auth/login`               | —                             | `200` session body and a new cookie. Wrong password and unknown email both give `401 INVALID_CREDENTIALS` (a dummy Argon2 verify equalizes timing). |
+| `POST /auth/logout`              | —                             | Revokes the current session (if any) and clears the cookie. Always `204`; idempotent.                                                               |
+| `GET /auth/session`              | session                       | Current user, their organizations and the active one. `401` when signed out.                                                                        |
+| `POST /auth/active-organization` | session                       | `{ organizationId }`: checks membership (`404` if none), then **rotates** the session token, keeping the original absolute expiry.                  |
+| `GET /organization`              | membership                    | The active organization.                                                                                                                            |
+| `PATCH /organization`            | `organization:update`         | Rename (audited as `organization.updated`).                                                                                                         |
+| `GET /members`                   | `member:read`                 | Members of the active organization.                                                                                                                 |
+| `PATCH /members/:userId`         | `member:change-role` + policy | Change a role (audited). Admins can't touch owners or grant ownership. `409 LAST_OWNER` if it would leave no owner.                                 |
+| `DELETE /members/:userId`        | `member:remove` + policy      | Remove a member: unassigns their tickets, cascades team memberships, audited. `409 LAST_OWNER` likewise.                                            |
+
+A `:userId` from another organization returns `404 NOT_FOUND`, identical to a non-existent ID.
+
+### Code map (`apps/api/src`)
+
+| Piece                                                               | Where                                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Token generation, HMAC, shape check                                 | `modules/auth/session-token.ts`                                                      |
+| Argon2id hashing, rehash check, dummy verify                        | `modules/auth/password.ts`                                                           |
+| Cookie read / set / clear                                           | `modules/auth/session-cookie.ts`                                                     |
+| Session lifecycle and tenant resolution                             | `modules/auth/auth.service.ts` (framework-agnostic; queries in `auth.repository.ts`) |
+| `authenticate`, `requireAuth`, `requireTenant`, `requirePermission` | `http/middleware/authenticate.ts`                                                    |
+| Auth rate limits                                                    | `http/middleware/rate-limit.ts`                                                      |
+| Per-request `AuthContext` / `TenantContext`                         | `http/auth-context.ts` (a `WeakMap` keyed by request; no Express type augmentation)  |
+| Composition of every `/api/v1` module                               | `api-router.ts`                                                                      |
+
+### Decisions and deviations from the original design
+
+| Topic                    | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Paths                    | `/api/v1/auth/*` (per conventions.md), not `/api/auth/*`. The session endpoint is `GET /api/v1/auth/session`.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Duplicate registration   | `409 EMAIL_TAKEN`. Without email verification (out of scope, §9), sign-up can't hide whether an email is registered without breaking the flow, so probing through sign-up is bounded by the per-IP registration rate limit instead. Two simultaneous sign-ups are settled by the unique index; the loser also gets `409`.                                                                                                                                                                            |
+| Removed from active org  | The session stays valid. Tenant-scoped routes return `403 NO_ACTIVE_ORGANIZATION` and `GET /auth/session` reports `activeOrganization: null`, so the user can pick another organization. Nothing is written on these `GET`s, and the server never silently falls back to another organization mid-request.                                                                                                                                                                                           |
+| Initial active org       | On login, the user's oldest membership.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Login with an old cookie | The old session is revoked before the new one is issued (session fixation).                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Invalid cookie           | The request continues unauthenticated and the response clears the cookie.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Owner invariant          | Role changes and removals run in a transaction holding `SELECT … FOR UPDATE` on the organization row, so concurrent demotions can't leave zero owners.                                                                                                                                                                                                                                                                                                                                               |
+| Rate limits              | Login: failed attempts per IP **and** per email (successes don't count). Registration: every attempt per IP. In-memory store (overview D12) until Redis arrives, so limits are per instance.                                                                                                                                                                                                                                                                                                         |
+| Production config        | The API refuses to start in production unless `SESSION_COOKIE_SECURE=true`, the cookie name starts with `__Host-`, `SESSION_SECRET` isn't the placeholder, and every `WEB_ORIGIN` is `https://`. The placeholder secret is accepted only in development.                                                                                                                                                                                                                                             |
+| Database outages         | Prisma connection/credential errors (`P1000`, `P1001`, `P1002`, `P1003`, `P1008`, `P1017`, `P2024`) become `503 SERVICE_UNAVAILABLE` with `Retry-After: 30`, logged as `Database unavailable` with the `errorCode` and request ID. Other unexpected errors stay a generic `500` whose log line also carries an `errorCode`. The web app shows "temporarily unavailable" for 503, "couldn't reach PulseDesk" when no API answers, field errors for 400s, and a reference ID only for unexpected 500s. |
+| Schema                   | No migration was needed: the Phase 2 `Session`, `Membership` and `AuditLog` models already had every column.                                                                                                                                                                                                                                                                                                                                                                                         |

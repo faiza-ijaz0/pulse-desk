@@ -1,5 +1,6 @@
 import { motion, type Variants } from 'framer-motion';
 import type { ReactNode } from 'react';
+import { useLocation } from 'react-router';
 import { PageHeader } from '@/components/common/states';
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/misc';
@@ -27,14 +28,27 @@ function Reveal({ children, className }: { children: ReactNode; className?: stri
   );
 }
 
+/** Set by the sign-up page on the first visit after an organization is created. */
+function welcomeFrom(state: unknown): string | undefined {
+  if (typeof state !== 'object' || state === null || !('welcome' in state)) return undefined;
+  return typeof state.welcome === 'string' ? state.welcome : undefined;
+}
+
 export function DashboardPage() {
+  const welcome = welcomeFrom(useLocation().state);
   return (
     <>
       <PageHeader
         title="Support overview"
         meta={<Badge tone="accent">Sample data</Badge>}
-        description="Last 7 days · Preview workspace"
+        description="Last 7 days · Sample data"
       />
+
+      {welcome && (
+        <Alert tone="success" title={`${welcome} is ready`} className="mb-4">
+          Your account and organization were created, and you’re signed in as its owner.
+        </Alert>
+      )}
 
       <Alert tone="info" title="This dashboard is a design preview" className="mb-6">
         Every number on this page is static sample data, not your organization’s activity. Live
