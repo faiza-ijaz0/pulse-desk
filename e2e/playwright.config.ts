@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_API_VERSION } from './support/stack.ts';
 import { AUTH_STATE } from './support/users.ts';
 
 const WEB_URL = 'http://localhost:4173';
@@ -8,6 +9,9 @@ const WEB_URL = 'http://localhost:4173';
 const API_PORT = '4100';
 const API_URL = `http://127.0.0.1:${API_PORT}`;
 const isCI = Boolean(process.env.CI);
+// A throwaway value for these local test servers only. With it set, the API rejects any
+// request that didn't come through the preview proxy, as it does behind Vercel.
+const PROXY_SHARED_SECRET = 'e2e-only-proxy-secret_not-used-anywhere-else';
 
 // Locally, read TEST_DATABASE_URL from the repository-root .env (variables already set win).
 const rootEnv = new URL('../.env', import.meta.url);
@@ -53,16 +57,22 @@ export default defineConfig({
       command:
         'pnpm --filter @pulsedesk/db run migrate:deploy && pnpm --filter @pulsedesk/api start',
       url: `${API_URL}/health`,
-      reuseExistingServer: !isCI,
+      // Never reuse whatever already listens on these ports: a leftover API could use another
+      // database (even production), and a leftover preview could proxy to a dead or different
+      // API. Playwright fails fast instead ("… is already used …"); stop the old server.
+      reuseExistingServer: false,
       timeout: 60_000,
       env: {
         NODE_ENV: 'test',
+        // Lets the setup project check that the preview forwards to this API (support/stack.ts).
+        APP_VERSION: E2E_API_VERSION,
         WEB_ORIGIN: WEB_URL,
         LOG_LEVEL: 'warn',
         API_PORT,
         DATABASE_URL: databaseUrl,
         // A throwaway secret for this local test server only; never used anywhere else.
         SESSION_SECRET: 'e2e-only-session-secret-not-used-anywhere-else',
+        PROXY_SHARED_SECRET,
         // Every browser in the suite shares one IP; keep brute-force limits on but roomy.
         RATE_LIMIT_AUTH_PER_15_MINUTES: '200',
       },
@@ -70,10 +80,11 @@ export default defineConfig({
     {
       command: 'pnpm --filter @pulsedesk/web preview',
       url: WEB_URL,
-      reuseExistingServer: !isCI,
+      reuseExistingServer: false,
       timeout: 30_000,
-      // Read by vite.config.ts on the Node side: where preview proxies /api and /health.
-      env: { API_PROXY_TARGET: API_URL },
+      // Read by vite.config.ts on the Node side: where preview proxies /api and /health, and
+      // the secret it adds to each proxied request (like Vercel's route transform).
+      env: { API_PROXY_TARGET: API_URL, PROXY_SHARED_SECRET },
     },
   ],
 });

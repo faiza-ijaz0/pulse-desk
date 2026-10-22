@@ -6,7 +6,7 @@ import {
 } from '@pulsedesk/shared';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createContext, use, type ReactNode } from 'react';
-import { ApiError, ApiUnavailableError, apiRequest } from '@/lib/api-client';
+import { ApiError, apiRequest } from '@/lib/api-client';
 
 export const SESSION_QUERY_KEY = ['auth', 'session'] as const;
 
@@ -23,14 +23,17 @@ export async function fetchSession(signal?: AbortSignal): Promise<AuthSession | 
   }
 }
 
-/** Restores the session from the HttpOnly cookie on load; the token itself is never visible here. */
+/**
+ * Restores the session from the HttpOnly cookie on load; the token itself is never visible
+ * here. A 401 is an answer (signed out), not a failure. Transient failures — e.g. the API
+ * waking from sleep — are retried with backoff by the QueryClient's default policy, and
+ * every component that asks for the session shares the one in-flight request.
+ */
 export function useSessionQuery() {
   return useQuery({
     queryKey: SESSION_QUERY_KEY,
     queryFn: ({ signal }) => fetchSession(signal),
     staleTime: 5 * 60_000,
-    // A 401 is an answer, not a failure. Retry once only when the API itself is unreachable.
-    retry: (failureCount, error) => error instanceof ApiUnavailableError && failureCount < 1,
   });
 }
 

@@ -66,16 +66,16 @@ pnpm build && pnpm test:e2e
 
 ## Documentation
 
-| Document                                                            | Contents                                                                                                                   |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Architecture overview](docs/architecture/overview.md)              | System context, workspace responsibilities, backend layering, cross-cutting concerns, key decisions, implementation status |
-| [Data model & tenant isolation](docs/architecture/data-model.md)    | Entities, ticket lifecycle, the four-layer isolation strategy, Phase 2 schema changes                                      |
-| [Authentication & sessions](docs/architecture/auth-and-sessions.md) | Session lifecycle, cookie settings, CSRF, RBAC, Socket.IO auth, abuse protection                                           |
-| [Design system](docs/design-system.md)                              | Tokens, components, responsive layout, motion, accessibility and preview-honesty rules                                     |
-| [Coding conventions](docs/conventions.md)                           | TypeScript, naming, API design, layering rules, linting, git workflow                                                      |
-| [Development guide](docs/development.md)                            | Setup without Docker, seed data, commands, environment configuration, troubleshooting                                      |
-| [Testing strategy](docs/testing.md)                                 | Test layers, current suites, test database lifecycle, CI                                                                   |
-| [Deployment](docs/deployment.md)                                    | Frontend preview on Vercel: project settings, SPA routing, environment variables, attaching the API later                  |
+| Document                                                            | Contents                                                                                                                       |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [Architecture overview](docs/architecture/overview.md)              | System context, workspace responsibilities, backend layering, cross-cutting concerns, key decisions, implementation status     |
+| [Data model & tenant isolation](docs/architecture/data-model.md)    | Entities, ticket lifecycle, the four-layer isolation strategy, Phase 2 schema changes                                          |
+| [Authentication & sessions](docs/architecture/auth-and-sessions.md) | Session lifecycle, cookie settings, CSRF, RBAC, Socket.IO auth, abuse protection                                               |
+| [Design system](docs/design-system.md)                              | Tokens, components, responsive layout, motion, accessibility and preview-honesty rules                                         |
+| [Coding conventions](docs/conventions.md)                           | TypeScript, naming, API design, layering rules, linting, git workflow                                                          |
+| [Development guide](docs/development.md)                            | Setup without Docker, seed data, commands, environment configuration, troubleshooting                                          |
+| [Testing strategy](docs/testing.md)                                 | Test layers, current suites, test database lifecycle, CI                                                                       |
+| [Deployment](docs/deployment.md)                                    | Vercel frontend + proxy, Render API, Neon PostgreSQL: secrets, proxy-secret enforcement, cold starts, migrations, verification |
 
 ## Roadmap
 

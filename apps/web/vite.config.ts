@@ -24,10 +24,13 @@ export default defineConfig(({ command, mode }) => {
   // API_PROXY_TARGET is read on the Node side only; it never reaches the browser bundle.
   const env = { ...fileEnv, ...process.env };
   const apiTarget = env.API_PROXY_TARGET ?? 'http://127.0.0.1:4000';
-  const proxy = {
-    '/api': { target: apiTarget, changeOrigin: false },
-    '/health': { target: apiTarget, changeOrigin: false },
-  };
+  // If the API is configured to require the proxy secret, send it like Vercel does in
+  // production (apps/web/vercel.json): set on the forwarded request, replacing any client
+  // copy. Node-side only — it is never part of the browser bundle (only VITE_* vars are).
+  const secret = env.PROXY_SHARED_SECRET;
+  const headers = secret ? { 'x-pulsedesk-proxy-secret': secret } : undefined;
+  const target = { target: apiTarget, changeOrigin: false, ...(headers && { headers }) };
+  const proxy = { '/api': target, '/health': target };
 
   return {
     plugins: [react(), tailwindcss()],

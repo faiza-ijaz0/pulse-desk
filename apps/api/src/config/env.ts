@@ -66,6 +66,15 @@ export const envSchema = z
     SESSION_IDLE_TIMEOUT_MINUTES: positiveInt.max(60 * 24 * 30).default(720),
     SESSION_ABSOLUTE_TIMEOUT_DAYS: positiveInt.max(90).default(14),
 
+    // Shared with the reverse proxy (Vercel), which sends it on every request it forwards.
+    // When set, everything except GET /health requires it. Required in production.
+    // The character set also rejects an unexpanded `$PROXY_SHARED_SECRET` placeholder.
+    PROXY_SHARED_SECRET: z
+      .string()
+      .min(32, 'must be at least 32 characters')
+      .regex(/^[A-Za-z0-9_-]+$/, 'must contain only letters, digits, "-" and "_" (e.g. base64url)')
+      .optional(),
+
     RATE_LIMIT_GLOBAL_PER_MINUTE: positiveInt.default(300),
     RATE_LIMIT_AUTH_PER_15_MINUTES: positiveInt.default(10),
     SHUTDOWN_TIMEOUT_MS: positiveInt.default(10_000),
@@ -86,7 +95,22 @@ export const envSchema = z
         message: 'must be true when SESSION_COOKIE_NAME uses the __Host- or __Secure- prefix',
       });
     }
+    if (env.PROXY_SHARED_SECRET !== undefined && env.PROXY_SHARED_SECRET === env.SESSION_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['PROXY_SHARED_SECRET'],
+        message: 'must be independent of SESSION_SECRET',
+      });
+    }
     if (env.NODE_ENV === 'production') {
+      // Fail closed: without it, anyone who finds the API host could bypass the proxy.
+      if (env.PROXY_SHARED_SECRET === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PROXY_SHARED_SECRET'],
+          message: 'is required in production',
+        });
+      }
       if (!env.SESSION_COOKIE_SECURE) {
         ctx.addIssue({
           code: 'custom',

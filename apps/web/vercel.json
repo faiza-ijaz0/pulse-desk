@@ -4,6 +4,23 @@
   "installCommand": "npx --yes pnpm@11.21.0 install --frozen-lockfile",
   "buildCommand": "npx --yes pnpm@11.21.0 run build",
   "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "^/(api(?:/.*)?|health|health/ready)$",
+      "dest": "${PULSEDESK_API_ORIGIN}/$1",
+      "env": ["PULSEDESK_API_ORIGIN"],
+      "headers": { "x-vercel-enable-rewrite-caching": "0" },
+      "transforms": [
+        {
+          "type": "request.headers",
+          "op": "set",
+          "target": { "key": "x-pulsedesk-proxy-secret" },
+          "args": "${PROXY_SHARED_SECRET}",
+          "env": ["PROXY_SHARED_SECRET"]
+        }
+      ]
+    }
+  ],
   "rewrites": [{ "source": "/((?!api/|api$|health$).*)", "destination": "/index.html" }],
   "headers": [
     {

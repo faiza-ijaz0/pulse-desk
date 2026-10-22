@@ -30,11 +30,25 @@ export class ApiError extends Error {
  * misconfigured proxy) replied with a non-API response — e.g. a frontend-only deployment.
  */
 export class ApiUnavailableError extends Error {
-  constructor(reason: string) {
+  /** The HTTP status of the non-API response, if there was a response at all. */
+  readonly status: number | undefined;
+  /**
+   * Likely to clear up on its own: the network failed, a gateway answered 502/503/504
+   * (e.g. while a sleeping API host starts), or a host served an interstitial page.
+   * A plain 404 is not transient: it means no API is attached to this deployment.
+   */
+  readonly transient: boolean;
+
+  constructor(reason: string, { status, transient }: { status?: number; transient: boolean }) {
     super(reason);
     this.name = 'ApiUnavailableError';
+    this.status = status;
+    this.transient = transient;
   }
 }
+
+/** Gateway statuses a proxy returns while the upstream is starting or briefly unreachable. */
+export const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
 
 type RequestOptions<Schema extends z.ZodType | undefined> = {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -67,15 +81,17 @@ export async function apiRequest<Schema extends z.ZodType | undefined = undefine
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    throw new ApiUnavailableError('The PulseDesk API could not be reached.');
+    throw new ApiUnavailableError('The PulseDesk API could not be reached.', { transient: true });
   }
 
+  const isJson = /\bjson\b/i.test(response.headers.get('content-type') ?? '');
   const payload: unknown = await response.json().catch(() => undefined);
 
   if (!response.ok) {
     if (isProblemDetails(payload)) throw new ApiError(payload);
     throw new ApiUnavailableError(
       `No PulseDesk API responded at ${path} (HTTP ${response.status}).`,
+      { status: response.status, transient: GATEWAY_STATUSES.has(response.status) },
     );
   }
   if (schema === undefined) {
@@ -83,7 +99,12 @@ export async function apiRequest<Schema extends z.ZodType | undefined = undefine
   }
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
-    throw new ApiUnavailableError(`Unexpected response from ${path}.`);
+    // A successful non-JSON page in place of the API is a host's interstitial (e.g. a
+    // "service is starting" page), not a contract mismatch, so it is worth retrying.
+    throw new ApiUnavailableError(`Unexpected response from ${path}.`, {
+      status: response.status,
+      transient: !isJson,
+    });
   }
   // The conditional return type can't be narrowed through the generic; parsed.data is the
   // schema's output type by construction.

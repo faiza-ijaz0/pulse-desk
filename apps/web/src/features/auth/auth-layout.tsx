@@ -2,8 +2,10 @@ import { motion } from 'framer-motion';
 import { Building2, ShieldCheck, Timer, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { BrandMark, BrandWordmark } from '@/components/layout/brand';
+import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/misc';
 import { useApiHealth } from '@/lib/api-health';
+import { isTransientApiError } from '@/lib/retry';
 
 const HIGHLIGHTS: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -23,10 +25,43 @@ const HIGHLIGHTS: { icon: LucideIcon; title: string; body: string }[] = [
   },
 ];
 
-/** Tells the visitor up front when no API is attached (e.g. the frontend-only preview). */
+/**
+ * Tells the visitor up front when the API isn't answering: still waking up (retrying),
+ * not responding after retries, or not attached at all (e.g. the frontend-only preview).
+ */
 function ApiUnavailableNotice() {
   const health = useApiHealth();
+  if (health.isPending && health.failureCount > 0) {
+    return (
+      <Alert tone="info" title="Connecting to PulseDesk…" className="mb-6">
+        The server may be starting up after a period of inactivity. This can take up to a minute.
+      </Alert>
+    );
+  }
   if (!health.isError) return null;
+  if (isTransientApiError(health.error)) {
+    return (
+      <Alert
+        tone="warning"
+        title="PulseDesk isn’t responding"
+        className="mb-6"
+        action={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void health.refetch()}
+            loading={health.isFetching}
+          >
+            Try again
+          </Button>
+        }
+      >
+        {import.meta.env.DEV
+          ? 'Start it with pnpm dev:api, then try again.'
+          : 'We couldn’t reach the server for a while. Check your connection, then try again.'}
+      </Alert>
+    );
+  }
   return (
     <Alert tone="warning" title="The PulseDesk API is unreachable" className="mb-6">
       {import.meta.env.DEV

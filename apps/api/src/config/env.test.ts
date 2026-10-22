@@ -13,6 +13,7 @@ const production = {
   WEB_ORIGIN: 'https://app.pulsedesk.example',
   SESSION_COOKIE_NAME: '__Host-pd_sid',
   SESSION_COOKIE_SECURE: 'true',
+  PROXY_SHARED_SECRET: 'a-test-proxy-secret-that-is-long-enough_0123',
 };
 
 describe('parseEnv', () => {
@@ -136,6 +137,36 @@ describe('parseEnv', () => {
     expect(unprefixed.ok).toBe(false);
     if (!unprefixed.ok) {
       expect(unprefixed.problems.join()).toMatch(/SESSION_COOKIE_NAME must use the __Host- prefix/);
+    }
+  });
+
+  it('refuses to boot production without a proxy secret', () => {
+    // Empty counts as unset, exactly like a blank variable in a hosting dashboard.
+    const result = parseEnv({ ...production, PROXY_SHARED_SECRET: '' });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toEqual([expect.stringMatching(/^PROXY_SHARED_SECRET is required/)]);
+  });
+
+  it('keeps the proxy secret optional in development and tests', () => {
+    const development = parseEnv(base);
+    expect(development.ok && development.env.PROXY_SHARED_SECRET).toBeUndefined();
+    expect(parseEnv({ ...base, NODE_ENV: 'test' }).ok).toBe(true);
+  });
+
+  it('rejects weak, malformed or reused proxy secrets in every environment', () => {
+    for (const PROXY_SHARED_SECRET of [
+      'too-short',
+      // What Vercel forwards when the variable it should expand is not set.
+      '$PROXY_SHARED_SECRET-and-enough-characters-to-pass',
+      'has spaces in it but is long enough to pass',
+      base.SESSION_SECRET,
+    ]) {
+      const result = parseEnv({ ...base, PROXY_SHARED_SECRET });
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      expect(result.problems.join()).toMatch(/^PROXY_SHARED_SECRET /);
+      expect(result.problems.join()).not.toContain(PROXY_SHARED_SECRET);
     }
   });
 

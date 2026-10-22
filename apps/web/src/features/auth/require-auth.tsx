@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert } from '@/components/ui/misc';
 import { Spinner } from '@/components/ui/spinner';
 import { ApiUnavailableError } from '@/lib/api-client';
+import { isTransientApiError } from '@/lib/retry';
 import { describeAuthError } from './form-helpers';
 import {
   SessionProvider,
@@ -91,24 +92,54 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (session.isPending) {
+    // TanStack pauses queries while the browser reports no network, and resumes on reconnect.
+    const offline = session.fetchStatus === 'paused';
+    // Only reached while retrying, i.e. after a transient failure such as a cold start.
+    const reconnecting = session.failureCount > 0;
     return (
       <FullScreen>
         <div
           role="status"
-          className="flex flex-col items-center gap-4 text-sm text-muted-foreground"
+          className="flex max-w-sm flex-col items-center gap-4 text-center text-sm text-muted-foreground"
         >
           <BrandMark className="size-9" />
-          <span className="flex items-center gap-2">
-            <Spinner />
-            Restoring your session…
+          <span className="flex items-center gap-2 font-medium text-foreground">
+            {!offline && <Spinner />}
+            {offline
+              ? 'You’re offline'
+              : reconnecting
+                ? 'Connecting to PulseDesk…'
+                : 'Restoring your session…'}
           </span>
+          {(offline || reconnecting) && (
+            <span>
+              {offline
+                ? 'PulseDesk will reconnect automatically when your connection is back.'
+                : 'The server may be starting up after a period of inactivity. This can take up to a minute.'}
+            </span>
+          )}
         </div>
       </FullScreen>
     );
   }
 
   if (session.isError) {
-    // No API answered (offline, or a frontend-only deployment): the sign-in page explains it.
+    // Automatic retries are used up: say so and let the user try again, rather than
+    // claiming that no API exists.
+    if (isTransientApiError(session.error)) {
+      return (
+        <FullScreen>
+          <ErrorState
+            className="w-full max-w-md"
+            title="PulseDesk isn’t responding"
+            description="We tried for a while but couldn’t reach the server. Check your connection, then try again."
+            onRetry={() => void session.refetch()}
+            retrying={session.isFetching}
+          />
+        </FullScreen>
+      );
+    }
+    // No API is attached at all (a frontend-only deployment): the sign-in page explains it.
     if (session.error instanceof ApiUnavailableError) {
       return <Navigate to="/login" replace state={{ from: location.pathname }} />;
     }

@@ -57,13 +57,126 @@ describe('session restoration', () => {
     expect(stored).not.toMatch(/pd_sid|token|session/i);
   });
 
-  it('explains when no API is reachable instead of pretending to sign in', async () => {
-    mockApi({ health: 'down', session: 'down' });
+  it('explains when no API is attached instead of pretending to sign in', async () => {
+    // A frontend-only deployment: the host answers /health and /api with its own 404 page.
+    const notFound = () => new Response('Not found', { status: 404 });
+    mockApi({ routes: { 'GET /health': notFound, 'GET /api/v1/auth/session': notFound } });
     renderApp('/dashboard');
     expect(
       await screen.findByRole('heading', { name: 'Sign in to PulseDesk' }),
     ).toBeInTheDocument();
     expect(await screen.findByText('The PulseDesk API is unreachable')).toBeInTheDocument();
+  });
+});
+
+describe('temporary API unavailability (e.g. a sleeping API host)', () => {
+  const FAST = { maxRetries: 3, baseDelayMs: 5, maxDelayMs: 20, random: () => 0 };
+  const gateway = (status: number) => () =>
+    new Response('<html>gateway</html>', { status, headers: { 'Content-Type': 'text/html' } });
+
+  /** A reply that stays pending until `release()`, so intermediate states can be asserted. */
+  function held() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    return { release, reply: () => gate.then(() => Response.json(SIGNED_IN_SESSION)) };
+  }
+
+  function sessionCalls(fetchMock: ReturnType<typeof mockApi>) {
+    return fetchMock.mock.calls.filter(([path]) => path === '/api/v1/auth/session').length;
+  }
+
+  it('shows a reconnecting state during a cold start, then restores the session', async () => {
+    const wake = held();
+    const sequence = [gateway(503), gateway(502), wake.reply];
+    const fetchMock = mockApi({
+      routes: { 'GET /api/v1/auth/session': () => (sequence.shift() ?? wake.reply)() },
+    });
+    renderApp('/dashboard', { retryPolicy: FAST });
+
+    // Announced politely through a live region, with an explanation of the wait.
+    const message = await screen.findByText('Connecting to PulseDesk…');
+    expect(message.closest('[role="status"]')).toHaveTextContent(/can take up to a minute/);
+    expect(screen.queryByText(/unreachable/i)).not.toBeInTheDocument();
+
+    wake.release();
+    expect(await screen.findByRole('heading', { name: 'Support overview' })).toBeInTheDocument();
+    expect(sessionCalls(fetchMock)).toBe(3);
+  });
+
+  it('stops after a bounded number of retries and offers a manual retry', async () => {
+    const user = userEvent.setup();
+    let reachable = false;
+    const fetchMock = mockApi({
+      routes: {
+        'GET /api/v1/auth/session': () =>
+          reachable ? Response.json(SIGNED_IN_SESSION) : Promise.reject(new TypeError('offline')),
+      },
+    });
+    renderApp('/dashboard', { retryPolicy: FAST });
+
+    const alert = await screen.findByRole('alert');
+    expect(within(alert).getByText('PulseDesk isn’t responding')).toBeInTheDocument();
+    expect(sessionCalls(fetchMock)).toBe(FAST.maxRetries + 1);
+
+    reachable = true;
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'Support overview' })).toBeInTheDocument();
+  });
+
+  it('does not retry an answer from the API, such as a 403', async () => {
+    const fetchMock = mockApi({
+      routes: { 'GET /api/v1/auth/session': () => problem(403, 'FORBIDDEN') },
+    });
+    renderApp('/dashboard', { retryPolicy: FAST });
+
+    expect(await screen.findByText('We couldn’t load your session')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(sessionCalls(fetchMock)).toBe(1);
+  });
+
+  it('stops retrying when the page is left mid-retry', async () => {
+    const fetchMock = mockApi({ routes: { 'GET /api/v1/auth/session': gateway(503) } });
+    const slow = { ...FAST, baseDelayMs: 50, maxDelayMs: 50 };
+    const { unmount } = renderApp('/dashboard', { retryPolicy: slow });
+
+    await screen.findByText('Connecting to PulseDesk…');
+    unmount();
+    const callsAtUnmount = sessionCalls(fetchMock);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(sessionCalls(fetchMock)).toBe(callsAtUnmount);
+  });
+
+  it('says the API is connecting on the sign-in page, not that it is unreachable', async () => {
+    const wake = held();
+    let healthCalls = 0;
+    mockApi({
+      session: null,
+      routes: {
+        'GET /health': () => (healthCalls++ === 0 ? gateway(504)() : wake.reply()),
+      },
+    });
+    renderApp('/login', { retryPolicy: FAST });
+
+    expect(await screen.findByText('Connecting to PulseDesk…')).toBeInTheDocument();
+    expect(screen.queryByText('The PulseDesk API is unreachable')).not.toBeInTheDocument();
+  });
+
+  it('never resubmits a sign-in automatically', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({
+      session: null,
+      routes: { 'POST /api/v1/auth/login': gateway(503) },
+    });
+    renderApp('/login', { retryPolicy: FAST });
+
+    await user.type(await screen.findByLabelText(/email/i), 'maya@brightwave.test');
+    await user.type(screen.getByLabelText(/^password/i), 'pulsedesk-dev-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByText(/starting up or briefly unavailable/i)).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const logins = fetchMock.mock.calls.filter(([path]) => path === '/api/v1/auth/login');
+    expect(logins).toHaveLength(1);
   });
 });
 

@@ -2,6 +2,7 @@ import express, { Router, type Express } from 'express';
 import type { Env } from './config/env.ts';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.ts';
 import { requireJsonBody, requireTrustedOrigin } from './http/middleware/origin-check.ts';
+import { requireProxySecret } from './http/middleware/proxy-secret.ts';
 import { globalRateLimit } from './http/middleware/rate-limit.ts';
 import { requestContext } from './http/middleware/request-context.ts';
 import { corsPolicy, securityHeaders } from './http/middleware/security.ts';
@@ -33,17 +34,34 @@ export function createApp({
   apiRouter = Router(),
   checkDatabase,
 }: AppDependencies): Express {
+  // The env schema already requires the secret in production; this guards other callers.
+  if (env.NODE_ENV === 'production' && env.PROXY_SHARED_SECRET === undefined) {
+    throw new Error('PROXY_SHARED_SECRET is required in production');
+  }
+
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', env.TRUST_PROXY_HOPS);
 
   // Order matters: every response — including errors and rate-limit rejections —
-  // must carry a request ID and security headers.
+  // must carry a request ID and security headers, and must never be stored by a shared
+  // cache (the Vercel CDN honours upstream Cache-Control on rewrites).
   app.use(requestContext(logger));
   app.use(securityHeaders());
+  app.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
 
-  // Liveness is mounted before rate limiting and CORS so probes are never throttled.
+  // Liveness is mounted before the proxy check, rate limiting and CORS, so the host's
+  // health probes (which call the API directly) are never rejected or throttled.
   app.use(healthRoutes(createHealthService({ clock, startedAt, version: env.APP_VERSION })));
+
+  // Everything else — readiness, preflight, every /api route and the 404 handler — only
+  // answers requests that came through the proxy. Unset only in development and tests.
+  if (env.PROXY_SHARED_SECRET !== undefined) {
+    app.use(requireProxySecret(env.PROXY_SHARED_SECRET));
+  }
 
   app.use(corsPolicy(env.WEB_ORIGIN));
   app.use(globalRateLimit(env.RATE_LIMIT_GLOBAL_PER_MINUTE));
@@ -54,10 +72,6 @@ export function createApp({
   app.use(requireJsonBody);
   app.use(express.json({ limit: '100kb' }));
 
-  app.use('/api/v1', (_req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    next();
-  });
   app.use('/api/v1', apiRouter);
 
   app.use(notFoundHandler);

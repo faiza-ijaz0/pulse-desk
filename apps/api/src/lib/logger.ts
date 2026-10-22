@@ -9,6 +9,7 @@ export const REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
   'req.headers["x-api-key"]',
+  'req.headers["x-pulsedesk-proxy-secret"]',
   'res.headers["set-cookie"]',
   '*.password',
   '*.passwordHash',

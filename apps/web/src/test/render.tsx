@@ -2,8 +2,9 @@ import { QueryClient } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
 import { vi } from 'vitest';
-import { AppProviders } from '@/app/providers';
+import { AppProviders, createQueryClient } from '@/app/providers';
 import { routes } from '@/app/router';
+import type { RetryPolicy } from '@/lib/retry';
 
 /** Makes `(min-width: …)` queries match, i.e. simulates a desktop-width viewport. */
 export function useDesktopViewport(prefersDark = false) {
@@ -115,10 +116,18 @@ export function mockHealth(response: 'ok' | 'down' | 'html' = 'ok') {
   return mockApi({ health: response });
 }
 
-/** Renders the real route tree inside the real providers, at the given URL. */
-export function renderApp(path = '/dashboard') {
+/**
+ * Renders the real route tree inside the real providers, at the given URL. Queries don't
+ * retry unless a `retryPolicy` is given, which uses the app's real QueryClient defaults.
+ */
+export function renderApp(
+  path = '/dashboard',
+  { retryPolicy }: { retryPolicy?: RetryPolicy } = {},
+) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = retryPolicy
+    ? createQueryClient(retryPolicy)
+    : new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const utils = render(
     <AppProviders queryClient={queryClient}>
       <RouterProvider router={router} />

@@ -1,17 +1,20 @@
 import { Tooltip } from '@/components/ui/tooltip';
 import { useApiHealth } from '@/lib/api-health';
+import { isTransientApiError } from '@/lib/retry';
 import { cn } from '@/lib/utils';
 
-type Status = 'checking' | 'online' | 'offline';
+type Status = 'checking' | 'reconnecting' | 'online' | 'offline';
 
 const LABELS: Record<Status, string> = {
   checking: 'Checking API…',
+  reconnecting: 'Reconnecting…',
   online: 'API online',
   offline: 'API unreachable',
 };
 
 const DOT: Record<Status, string> = {
   checking: 'bg-subtle-foreground animate-shimmer',
+  reconnecting: 'bg-warning animate-shimmer',
   online: 'bg-success',
   offline: 'bg-danger',
 };
@@ -19,16 +22,28 @@ const DOT: Record<Status, string> = {
 /** Live connection indicator backed by a real request to GET /health. */
 export function ApiStatus({ collapsed = false }: { collapsed?: boolean }) {
   const health = useApiHealth();
-  const status: Status = health.isPending ? 'checking' : health.isError ? 'offline' : 'online';
+  // A failed check is retried with backoff before it counts as an outage.
+  const status: Status =
+    health.isFetching && health.failureCount > 0
+      ? 'reconnecting'
+      : health.isPending
+        ? 'checking'
+        : health.isError
+          ? 'offline'
+          : 'online';
   const detail =
     status === 'online'
       ? `Version ${health.data?.version ?? ''} · up ${formatUptime(health.data?.uptimeSeconds ?? 0)}`
       : status === 'offline'
         ? import.meta.env.DEV
           ? 'Start it with pnpm dev:api'
-          : // e.g. a frontend-only preview deployment, where no API is connected yet.
-            'No PulseDesk API responded at /health on this deployment'
-        : 'Contacting /health';
+          : isTransientApiError(health.error)
+            ? 'The API stopped responding. It is re-checked every 30 seconds'
+            : // e.g. a frontend-only preview deployment, where no API is connected yet.
+              'No PulseDesk API responded at /health on this deployment'
+        : status === 'reconnecting'
+          ? 'The API may be starting up; retrying'
+          : 'Contacting /health';
 
   return (
     <Tooltip content={`${LABELS[status]} — ${detail}`} side="right">

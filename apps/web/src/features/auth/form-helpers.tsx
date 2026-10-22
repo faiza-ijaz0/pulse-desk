@@ -2,7 +2,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 import type { z } from 'zod';
 import { Input } from '@/components/ui/input';
-import { ApiError, ApiUnavailableError } from '@/lib/api-client';
+import { ApiError, ApiUnavailableError, GATEWAY_STATUSES } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 
 /** First validation message per top-level field, for Field's `error` prop. */
@@ -23,6 +23,11 @@ export function focusFirstInvalid(form: HTMLFormElement | null): void {
 /** A user-facing sentence for a failed auth request. Never echoes server internals. */
 export function describeAuthError(error: unknown): string {
   if (error instanceof ApiUnavailableError) {
+    // A gateway answered for the API: most often the server is still starting up.
+    // Forms are never resubmitted automatically, so the user decides when to retry.
+    if (error.status !== undefined && GATEWAY_STATUSES.has(error.status)) {
+      return 'PulseDesk is starting up or briefly unavailable. Wait a moment, then try again.';
+    }
     return 'We couldn’t reach PulseDesk. Check your connection and try again.';
   }
   if (error instanceof ApiError) {
