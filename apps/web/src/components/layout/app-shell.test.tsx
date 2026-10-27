@@ -86,12 +86,12 @@ describe('application shell', () => {
 
   it('shows an honest placeholder for planned features', async () => {
     mockHealth();
-    renderApp('/tickets');
+    renderApp('/analytics');
 
     expect(
-      await screen.findByRole('heading', { name: 'Tickets isn’t built yet' }),
+      await screen.findByRole('heading', { name: 'Analytics isn’t built yet' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Planned · Phase 4/)).toBeInTheDocument();
+    expect(screen.getByText(/Planned · Phase 6/)).toBeInTheDocument();
   });
 
   it('shows a not-found page for unknown routes', async () => {

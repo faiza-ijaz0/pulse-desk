@@ -1,4 +1,6 @@
 import type { Database, Role, TransactionClient } from '@pulsedesk/db';
+import { withTransactionRetry } from '../../lib/transactions.ts';
+import type { StoredEvent } from '../tickets/ticket-event-data.ts';
 
 const memberSelect = {
   userId: true,
@@ -37,13 +39,37 @@ function scopedTo(client: TransactionClient, organizationId: string) {
       return client.membership.update({ where: key(userId), data: { role }, select: memberSelect });
     },
 
-    async remove(userId: string): Promise<void> {
-      // Ticket → assignee is a composite FK with NO ACTION (data-model.md, layer 3), so the
-      // member's tickets are unassigned first. Team memberships cascade with the membership.
-      await client.ticket.updateMany({
+    /**
+     * Ticket → assignee is a composite FK with NO ACTION (data-model.md, layer 3), so the
+     * member's tickets are unassigned first, each with an ASSIGNED event so its timeline
+     * says who unassigned it. Team memberships cascade with the membership.
+     */
+    async remove(userId: string, actorUserId: string, at: Date): Promise<void> {
+      const tickets = await client.ticket.findMany({
         where: { organizationId, assigneeUserId: userId },
-        data: { assigneeUserId: null },
+        select: { id: true },
       });
+      if (tickets.length > 0) {
+        const ids = tickets.map((t) => t.id);
+        await client.ticket.updateMany({
+          where: { organizationId, id: { in: ids } },
+          data: { assigneeUserId: null, updatedAt: at },
+        });
+        const event: StoredEvent = {
+          type: 'ASSIGNED',
+          data: { fromUserId: userId, toUserId: null },
+        };
+        await client.ticketEvent.createMany({
+          data: ids.map((ticketId) => ({
+            organizationId,
+            ticketId,
+            actorUserId,
+            type: event.type,
+            data: event.data,
+            createdAt: at,
+          })),
+        });
+      }
       await client.membership.delete({ where: key(userId) });
     },
 
@@ -82,18 +108,38 @@ export function createMembersRepository(db: Database) {
     },
 
     /**
-     * Runs `fn` in a transaction that holds a row lock on the organization, so concurrent
-     * role changes and removals are serialized — two owners demoting each other at once
-     * can't leave the organization without an owner.
+     * Runs `fn` in a transaction that first locks the target membership row, then the
+     * organization row:
+     * - the organization lock serializes role changes and removals, so two owners demoting
+     *   each other at once can't leave the organization without an owner;
+     * - the membership lock comes first because ticket writes lock the members they assign
+     *   (FOR KEY SHARE) before anything else. Removal (`update`) then waits for in-flight
+     *   assignments and unassigns them; an assignment arriving later sees no member. A role
+     *   change (`no key update`) doesn't conflict with assignments at all.
+     * Taking the two locks in the same order as every other writer avoids deadlocks.
      */
-    withOrganizationLock<T>(
+    withMemberLock<T>(
       organizationId: string,
+      target: { userId: string; mode: 'update' | 'no key update' },
       fn: (members: ScopedMembersRepository) => Promise<T>,
     ): Promise<T> {
-      return db.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
-        return fn(scopedTo(tx, organizationId));
-      });
+      return withTransactionRetry(() =>
+        db.$transaction(async (tx) => {
+          if (target.mode === 'update') {
+            await tx.$queryRaw`
+              SELECT 1 FROM "Membership"
+              WHERE "organizationId" = ${organizationId}::uuid AND "userId" = ${target.userId}::uuid
+              FOR UPDATE`;
+          } else {
+            await tx.$queryRaw`
+              SELECT 1 FROM "Membership"
+              WHERE "organizationId" = ${organizationId}::uuid AND "userId" = ${target.userId}::uuid
+              FOR NO KEY UPDATE`;
+          }
+          await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
+          return fn(scopedTo(tx, organizationId));
+        }),
+      );
     },
   };
 }

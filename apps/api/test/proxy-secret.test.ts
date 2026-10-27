@@ -1,13 +1,12 @@
 import { createPrismaClient } from '@pulsedesk/db';
 import { problemDetailsSchema, readinessResponseSchema } from '@pulsedesk/shared';
-import type { Router } from 'express';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApiRouter } from '../src/api-router.ts';
 import { createApp } from '../src/app.ts';
 import { PROXY_SECRET_HEADER } from '../src/http/middleware/proxy-secret.ts';
 import { createLogger } from '../src/lib/logger.ts';
-import { WEB_ORIGIN, buildTestApp, captureLogs, testEnv } from './helpers.ts';
+import { WEB_ORIGIN, buildTestApp, captureLogs, registeredRoutes, testEnv } from './helpers.ts';
 
 const SECRET = 'unit-test-proxy-secret_0123456789abcdefghij';
 
@@ -25,25 +24,6 @@ const apiRouter = createApiRouter({ env, db, logger, clock });
 const app = createApp({ env, logger, clock, apiRouter, checkDatabase: () => Promise.resolve() });
 
 afterAll(() => db.$disconnect());
-
-type Method = 'get' | 'post' | 'patch' | 'delete';
-
-/** Every route registered on the real API router, walked through nested routers. */
-function registeredRoutes(router: Router): { method: Method; path: string }[] {
-  type Layer = {
-    route?: { path: string; methods: Record<string, boolean> };
-    handle: { stack?: Layer[] };
-  };
-  const walk = (stack: Layer[]): { method: Method; path: string }[] =>
-    stack.flatMap((layer) => {
-      if (layer.route) {
-        const { path, methods } = layer.route;
-        return Object.keys(methods).map((method) => ({ method: method as Method, path }));
-      }
-      return layer.handle.stack ? walk(layer.handle.stack) : [];
-    });
-  return walk((router as unknown as { stack: Layer[] }).stack);
-}
 
 const API_ROUTES = registeredRoutes(apiRouter).map(({ method, path }) => ({
   method,

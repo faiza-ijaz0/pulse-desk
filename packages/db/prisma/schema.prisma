@@ -159,6 +159,8 @@ model Invitation {
   @@index([organizationId, email])
 }
 
+// Names are unique per organization regardless of case: "Team_organizationId_lower_name_key"
+// on ("organizationId", lower("name")) is created by hand in a migration (Prisma can't model it).
 model Team {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid
@@ -291,6 +293,8 @@ model Message {
   @@index([organizationId, createdAt])
 }
 
+// Names are unique per organization regardless of case: "Tag_organizationId_lower_name_key"
+// on ("organizationId", lower("name")) is created by hand in a migration (Prisma can't model it).
 model Tag {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @db.Uuid

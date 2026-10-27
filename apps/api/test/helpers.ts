@@ -57,3 +57,24 @@ export function buildTestApp(
   });
   return { app, logs, env };
 }
+
+export type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
+
+/** Every route registered on the real API router, walked through nested routers. */
+export function registeredRoutes(router: Router): { method: Method; path: string }[] {
+  type Layer = {
+    route?: { path: string; methods: Record<string, boolean> };
+    handle: { stack?: Layer[] };
+  };
+  const walk = (stack: Layer[]): { method: Method; path: string }[] =>
+    stack.flatMap((layer) => {
+      if (layer.route) {
+        const { path, methods } = layer.route;
+        // Express lists methods in lower case; these are the ones the API router uses.
+        return Object.keys(methods).map((method) => ({ method: method as Method, path }));
+      }
+      return layer.handle.stack ? walk(layer.handle.stack) : [];
+    });
+  // Express keeps its route stack on the router function; it isn't part of the public type.
+  return walk((router as unknown as { stack: Layer[] }).stack);
+}

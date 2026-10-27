@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   'ticket:reply',
   'ticket:assign',
   'ticket:manage-settings',
+  'customer:update',
   'team:manage',
   'tag:manage',
   'sla:manage',
@@ -29,6 +30,7 @@ const AGENT_PERMISSIONS = [
   'ticket:read',
   'ticket:reply',
   'ticket:assign',
+  'customer:update',
   'member:read',
   'analytics:read-own',
 ] as const satisfies readonly Permission[];

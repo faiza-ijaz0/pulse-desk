@@ -35,6 +35,40 @@ export const routes: RouteObject[] = [
         }),
       },
       {
+        path: 'tickets',
+        lazy: async () => ({
+          Component: (await import('@/features/tickets/ticket-inbox-page')).TicketInboxPage,
+        }),
+      },
+      {
+        path: 'tickets/:number',
+        lazy: async () => ({
+          Component: (await import('@/features/tickets/ticket-detail-page')).TicketDetailPage,
+        }),
+      },
+      {
+        path: 'customers',
+        lazy: async () => ({
+          Component: (await import('@/features/customers/customers-page')).CustomersPage,
+        }),
+      },
+      {
+        path: 'customers/:customerId',
+        lazy: async () => ({
+          Component: (await import('@/features/customers/customer-detail-page')).CustomerDetailPage,
+        }),
+      },
+      {
+        path: 'team',
+        lazy: async () => ({ Component: (await import('@/features/team/team-page')).TeamPage }),
+      },
+      {
+        path: 'settings',
+        lazy: async () => ({
+          Component: (await import('@/features/settings/settings-page')).SettingsPage,
+        }),
+      },
+      {
         path: 'design-system',
         lazy: async () => ({
           Component: (await import('@/pages/design-system-page')).DesignSystemPage,

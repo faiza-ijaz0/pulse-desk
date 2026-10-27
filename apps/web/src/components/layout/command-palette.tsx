@@ -1,22 +1,49 @@
-import { CornerDownLeft, Monitor, Moon, Search, Sun, type LucideIcon } from 'lucide-react';
+import { TICKET_STATUS_LABELS, searchResponseSchema } from '@pulsedesk/shared';
+import { useQuery } from '@tanstack/react-query';
+import {
+  CornerDownLeft,
+  Inbox,
+  Monitor,
+  Moon,
+  RotateCw,
+  Search,
+  Sun,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { overlayStyles } from '@/components/ui/dialog';
 import { Kbd } from '@/components/ui/misc';
+import { apiRequest } from '@/lib/api-client';
 import { useTheme, type ThemePreference } from '@/lib/theme';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { cn } from '@/lib/utils';
+
+const GROUPS = ['Navigate', 'Tickets', 'Customers', 'Search', 'Preferences'] as const;
+type Group = (typeof GROUPS)[number];
 
 type Command = {
   id: string;
-  group: 'Navigate' | 'Preferences';
+  group: Group;
   label: string;
   hint?: string;
   icon: LucideIcon;
   keywords: string;
   run: () => void;
+  /** Runs without closing the menu (e.g. retrying the search). */
+  keepOpen?: boolean;
 };
+
+const SEARCH_DELAY_MS = 250;
+
+/** Search once there are two characters, or a ticket number like `7` or `#7`. */
+function searchableText(query: string): string {
+  const text = query.trim();
+  return text.length >= 2 || /^#?\d+$/.test(text) ? text : '';
+}
 
 const THEME_COMMANDS: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
   { value: 'light', label: 'Use light theme', icon: Sun },
@@ -27,7 +54,8 @@ const THEME_COMMANDS: { value: ThemePreference; label: string; icon: LucideIcon 
 /**
  * Keyboard-first command menu (⌘K / Ctrl+K). Implements the ARIA combobox + listbox
  * pattern: focus stays in the input, arrow keys move the active option, Enter runs it.
- * Every command performs a real action; record search arrives with the ticket inbox.
+ * Every command performs a real action. Typing also searches the organization's tickets
+ * and customers (debounced, so one request per pause in typing) and lists the matches.
  */
 export function CommandPalette({
   open,
@@ -87,6 +115,59 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     [navigate, preference, setPreference],
   );
 
+  const text = useDebouncedValue(searchableText(query), SEARCH_DELAY_MS);
+  const search = useQuery({
+    queryKey: ['search', text],
+    queryFn: ({ signal }) =>
+      apiRequest(`/api/v1/search?q=${encodeURIComponent(text)}`, {
+        schema: searchResponseSchema,
+        signal,
+      }),
+    enabled: text !== '',
+    staleTime: 30_000,
+  });
+  const waiting =
+    searchableText(query) !== '' && (searchableText(query) !== text || search.isFetching);
+
+  const records = useMemo<Command[]>(() => {
+    if (text === '') return [];
+    if (search.isError) {
+      return [
+        {
+          id: 'search:retry',
+          group: 'Search',
+          label: 'Search is unavailable — retry search',
+          icon: RotateCw,
+          keywords: '',
+          keepOpen: true,
+          run: () => void search.refetch(),
+        },
+      ];
+    }
+    const data = search.data;
+    if (!data) return [];
+    return [
+      ...data.tickets.map((ticket) => ({
+        id: `ticket:${ticket.number}`,
+        group: 'Tickets' as const,
+        label: `#${ticket.number} ${ticket.subject}`,
+        hint: TICKET_STATUS_LABELS[ticket.status],
+        icon: Inbox,
+        keywords: '',
+        run: () => void navigate(`/tickets/${ticket.number}`),
+      })),
+      ...data.customers.map((customer) => ({
+        id: `customer:${customer.id}`,
+        group: 'Customers' as const,
+        label: customer.name ?? customer.email,
+        ...(customer.name && { hint: customer.email }),
+        icon: UserRound,
+        keywords: '',
+        run: () => void navigate(`/customers/${customer.id}`),
+      })),
+    ];
+  }, [text, search, navigate]);
+
   const results = useMemo(() => {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return commands;
@@ -104,31 +185,43 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       .map((r) => r.command);
   }, [commands, query]);
 
-  const active = results[Math.min(activeIndex, results.length - 1)];
+  // Commands in the order they are shown, which is the order the arrow keys walk.
+  const ordered = useMemo(
+    () =>
+      GROUPS.flatMap((group) =>
+        group === 'Tickets' || group === 'Customers' || group === 'Search'
+          ? records.filter((c) => c.group === group)
+          : results.filter((c) => c.group === group),
+      ),
+    [records, results],
+  );
+
+  const active = ordered[Math.min(activeIndex, ordered.length - 1)];
   const optionId = (command: Command) => `${listId}-${command.id}`;
 
   function runCommand(command: Command) {
-    onClose();
+    if (!command.keepOpen) onClose();
     command.run();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (results.length === 0) return;
+    if (ordered.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setActiveIndex((i) => (i + 1) % results.length);
+      setActiveIndex((i) => (i + 1) % ordered.length);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setActiveIndex((i) => (i - 1 + results.length) % results.length);
+      setActiveIndex((i) => (i - 1 + ordered.length) % ordered.length);
     } else if (event.key === 'Enter' && active) {
       event.preventDefault();
       runCommand(active);
     }
   }
 
-  const groups = (['Navigate', 'Preferences'] as const)
-    .map((group) => ({ group, items: results.filter((c) => c.group === group) }))
-    .filter((g) => g.items.length > 0);
+  const groups = GROUPS.map((group) => ({
+    group,
+    items: ordered.filter((c) => c.group === group),
+  })).filter((g) => g.items.length > 0);
 
   return (
     <>
@@ -141,7 +234,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           aria-activedescendant={active ? optionId(active) : undefined}
           aria-autocomplete="list"
           aria-label="Search commands"
-          placeholder="Jump to a page or run a command…"
+          placeholder="Search tickets and customers, or run a command…"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -161,10 +254,20 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       >
         {groups.length === 0 ? (
           <div className="px-3 py-8 text-center">
-            <p className="text-sm font-medium">No commands match “{query}”</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Searching tickets and customers arrives with the ticket inbox in Phase 4.
-            </p>
+            {waiting ? (
+              <p className="text-sm text-muted-foreground">Searching tickets and customers…</p>
+            ) : (
+              <>
+                <p className="text-sm font-medium">
+                  {searchableText(query) === ''
+                    ? `No commands match “${query}”`
+                    : `No tickets, customers or commands match “${query.trim()}”`}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Search matches ticket numbers and subjects, and customer names and emails.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           groups.map(({ group, items }) => (
@@ -188,7 +291,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                     role="option"
                     aria-selected={isActive}
                     tabIndex={-1}
-                    onMouseMove={() => setActiveIndex(results.indexOf(command))}
+                    onMouseMove={() => setActiveIndex(ordered.indexOf(command))}
                     onClick={() => runCommand(command)}
                     className={cn(
                       'flex h-9 cursor-default items-center gap-3 rounded-md px-2 text-sm',
@@ -219,6 +322,14 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           ))
         )}
       </div>
+
+      <p role="status" className="sr-only">
+        {waiting
+          ? 'Searching tickets and customers'
+          : text !== '' && search.isSuccess
+            ? `${search.data.tickets.length} tickets and ${search.data.customers.length} customers found`
+            : ''}
+      </p>
 
       <div className="flex items-center gap-4 border-t border-border bg-surface-sunken/60 px-4 py-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">

@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadWorkspaceEnv } from '../src/env.ts';
+import { prismaErrorCode } from '../src/errors.ts';
 import { TenantScopeViolationError } from '../src/tenant-guard.ts';
 import type { Database } from '../src/client.ts';
 import { createOrgWithCustomer, createTestClient } from './helpers.ts';
@@ -146,6 +148,109 @@ describe('referential actions', () => {
 });
 
 describe('hand-written constraints from the migration', () => {
+  describe.each(['Team', 'Tag'] as const)('%s names, unique regardless of case', (table) => {
+    const create = (organizationId: string, name: string) =>
+      table === 'Team'
+        ? db.team.create({ data: { organizationId, name } })
+        : db.tag.create({ data: { organizationId, name } });
+
+    it('rejects a name differing only by case, even written directly to the database', async () => {
+      const { organization } = await createOrgWithCustomer(db, `ci-${table.toLowerCase()}`);
+      await create(organization.id, 'Billing');
+      for (const name of ['billing', 'BILLING', 'bIlLiNg']) {
+        const error: unknown = await create(organization.id, name).catch((e: unknown) => e);
+        expect(prismaErrorCode(error), name).toBe('P2002');
+        expect(String(error), name).toContain(`${table}_organizationId_lower_name_key`);
+      }
+      expect(
+        await db.$queryRawUnsafe<{ n: number }[]>(
+          `SELECT count(*)::int AS n FROM "${table}" WHERE "organizationId" = $1::uuid`,
+          organization.id,
+        ),
+      ).toEqual([{ n: 1 }]);
+    });
+
+    it('rejects a rename onto another name differing only by case', async () => {
+      const { organization } = await createOrgWithCustomer(db, `ci-rename-${table.toLowerCase()}`);
+      await create(organization.id, 'Escalations');
+      const other = await create(organization.id, 'Other');
+      const rename =
+        table === 'Team'
+          ? db.team.update({
+              where: { organizationId_id: { organizationId: organization.id, id: other.id } },
+              data: { name: 'ESCALATIONS' },
+            })
+          : db.tag.update({
+              where: { organizationId_id: { organizationId: organization.id, id: other.id } },
+              data: { name: 'ESCALATIONS' },
+            });
+      expect(prismaErrorCode(await rename.catch((e: unknown) => e))).toBe('P2002');
+    });
+
+    it('still allows the same name in different organizations, and recasing a name itself', async () => {
+      const a = await createOrgWithCustomer(db, `ci-a-${table.toLowerCase()}`);
+      const b = await createOrgWithCustomer(db, `ci-b-${table.toLowerCase()}`);
+      const mine = await create(a.organization.id, 'Shared');
+      await expect(create(b.organization.id, 'SHARED')).resolves.toBeDefined();
+      const recase =
+        table === 'Team'
+          ? db.team.update({
+              where: { organizationId_id: { organizationId: a.organization.id, id: mine.id } },
+              data: { name: 'SHARED' },
+            })
+          : db.tag.update({
+              where: { organizationId_id: { organizationId: a.organization.id, id: mine.id } },
+              data: { name: 'SHARED' },
+            });
+      await expect(recase).resolves.toMatchObject({ name: 'SHARED' });
+    });
+
+    it('makes the migration stop, naming the records, if duplicates already exist', async () => {
+      const { organization } = await createOrgWithCustomer(db, `ci-guard-${table.toLowerCase()}`);
+      const migration = readFileSync(
+        new URL(
+          '../prisma/migrations/20261026000000_case_insensitive_team_tag_names/migration.sql',
+          import.meta.url,
+        ),
+        'utf8',
+      );
+      const guard = migration.slice(migration.indexOf('DO $$'), migration.indexOf('$$;') + 3);
+      class Rollback extends Error {}
+
+      // Everything happens in one transaction that is always rolled back: the index is
+      // dropped only inside it, so no other session ever sees it missing.
+      const run = db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`DROP INDEX "${table}_organizationId_lower_name_key"`);
+        const first =
+          table === 'Team'
+            ? await tx.team.create({ data: { organizationId: organization.id, name: 'Dup' } })
+            : await tx.tag.create({ data: { organizationId: organization.id, name: 'Dup' } });
+        const second =
+          table === 'Team'
+            ? await tx.team.create({ data: { organizationId: organization.id, name: 'DUP' } })
+            : await tx.tag.create({ data: { organizationId: organization.id, name: 'DUP' } });
+        const error: unknown = await tx.$executeRawUnsafe(guard).catch((e: unknown) => e);
+        const message = String(error);
+        expect(message).toContain(`${table} names that differ only by case already exist`);
+        expect(message).toContain(organization.id);
+        expect(message).toContain(first.id);
+        expect(message).toContain(second.id);
+        throw new Rollback();
+      });
+      await expect(run).rejects.toBeInstanceOf(Rollback);
+
+      const index = await db.$queryRaw<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM pg_indexes WHERE indexname = ${`${table}_organizationId_lower_name_key`}`;
+      expect(index).toEqual([{ n: 1 }]);
+      expect(
+        await db.$queryRawUnsafe<{ n: number }[]>(
+          `SELECT count(*)::int AS n FROM "${table}" WHERE "organizationId" = $1::uuid`,
+          organization.id,
+        ),
+      ).toEqual([{ n: 0 }]);
+    });
+  });
+
   it('allows at most one default SLA policy per organization', async () => {
     const { organization } = await createOrgWithCustomer(db, 'sla');
     await db.slaPolicy.create({

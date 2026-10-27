@@ -51,7 +51,7 @@ export class ApiUnavailableError extends Error {
 export const GATEWAY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
 
 type RequestOptions<Schema extends z.ZodType | undefined> = {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** Validates the success body against the shared contract. Omit for empty (204) responses. */
   schema?: Schema;

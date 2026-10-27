@@ -117,3 +117,26 @@ export class LastOwnerError extends AppError {
     });
   }
 }
+
+export class InvalidStatusTransitionError extends AppError {
+  constructor(detail: string) {
+    super({
+      status: 409,
+      code: 'INVALID_STATUS_TRANSITION',
+      title: 'Status change not allowed',
+      detail,
+    });
+  }
+}
+
+export class TicketClosedError extends AppError {
+  constructor() {
+    super({
+      status: 409,
+      code: 'TICKET_CLOSED',
+      title: 'Ticket is closed',
+      detail:
+        'Closed tickets are read-only. A new message from the customer starts a follow-up ticket.',
+    });
+  }
+}

@@ -64,6 +64,7 @@ export function browser(app: App) {
       return body === undefined ? req : req.send(body);
     },
     patch: (path: string, body: object) => agent.patch(path).set('Origin', WEB_ORIGIN).send(body),
+    put: (path: string) => agent.put(path).set('Origin', WEB_ORIGIN),
     delete: (path: string) => agent.delete(path).set('Origin', WEB_ORIGIN),
   };
 }

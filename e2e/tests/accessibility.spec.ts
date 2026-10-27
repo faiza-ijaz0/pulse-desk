@@ -4,7 +4,12 @@ import { expectNoA11yViolations } from '../support/a11y.ts';
 const PAGES = [
   { path: '/dashboard', heading: 'Support overview' },
   { path: '/design-system', heading: 'Design system' },
-  { path: '/tickets', heading: 'Tickets isn’t built yet' },
+  { path: '/tickets', heading: 'Tickets' },
+  { path: '/tickets/1', heading: 'Ticket not found' },
+  { path: '/customers', heading: 'Customers' },
+  { path: '/team', heading: 'Agents & teams' },
+  { path: '/settings', heading: 'Settings' },
+  { path: '/analytics', heading: 'Analytics isn’t built yet' },
 ];
 
 for (const theme of ['light', 'dark'] as const) {

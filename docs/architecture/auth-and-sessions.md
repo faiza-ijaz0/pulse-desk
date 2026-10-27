@@ -115,6 +115,24 @@ Cookie authentication needs CSRF defense. PulseDesk layers three:
 - An organization must always have at least one `OWNER`. This is enforced in the service layer inside a transaction.
 - Role changes and member removals are written to `AuditLog`.
 
+**Write endpoints (as implemented, Phase 4D).** Every one requires a session, the trusted
+`Origin` (CSRF), and a membership in the active organization that is re-read on each request,
+so a removal or demotion applies to the very next request.
+
+| Endpoint                                                             | Permission                                           | Roles                                 |
+| -------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------- |
+| `PATCH /organization`                                                | `organization:update`                                | Owner, Admin                          |
+| `PATCH /members/:userId`, `DELETE /members/:userId`                  | `member:change-role`, `member:remove`                | Owner, Admin (owners only for owners) |
+| `POST /tickets`, `PATCH /tickets/:number`, `POST …/messages`         | `ticket:reply` (+ `ticket:assign` for assignee/team) | All                                   |
+| `PATCH /customers/:customerId`                                       | `customer:update`                                    | All                                   |
+| `POST/PATCH/DELETE /teams…`, `PUT/DELETE /teams/:id/members/:userId` | `team:manage`                                        | Owner, Admin                          |
+| `POST/PATCH/DELETE /tags…`                                           | `tag:manage`                                         | Owner, Admin                          |
+
+A refused request (403) is identical whether or not the named resource exists, and an ID from
+another organization gets the same 404 as one that never existed. This table is enforced by
+`apps/api/test/integration/authorization.int.test.ts`, which fails if a write route is added
+without being listed there.
+
 ## 7. Socket.IO authentication
 
 - The handshake request carries the same session cookie (same origin).

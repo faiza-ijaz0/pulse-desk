@@ -69,14 +69,19 @@ test.describe('responsive layouts', () => {
 
     await drawer.getByRole('link', { name: /tickets/i }).click();
     await expect(drawer).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Tickets isn’t built yet' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Tickets' })).toBeVisible();
 
     // No horizontal overflow on a phone-width screen.
-    await page.goto('/dashboard');
-    await expect(page.getByRole('heading', { name: 'Support overview' })).toBeVisible();
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    for (const [path, heading] of [
+      ['/dashboard', 'Support overview'],
+      ['/tickets', 'Tickets'],
+    ] as const) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(overflow, path).toBeLessThanOrEqual(0);
+    }
   });
 });

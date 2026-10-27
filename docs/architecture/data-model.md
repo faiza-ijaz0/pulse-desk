@@ -60,9 +60,62 @@ SOLVED ──(customer reply)──► OPEN
   └──(auto after N days, worker job)──► CLOSED   (terminal; a reply creates a follow-up ticket)
 ```
 
+The rules are enforced by one pure function, `transitionTicketStatus` in
+`packages/shared/src/ticket-lifecycle.ts`, used by the API (and later the auto-close job):
+
+| From      | Agent may move to                      | Customer reply | System   |
+| --------- | -------------------------------------- | -------------- | -------- |
+| `OPEN`    | `PENDING`, `ON_HOLD`, `SOLVED`         | —              | —        |
+| `PENDING` | `OPEN`, `ON_HOLD`, `SOLVED`            | `OPEN`         | —        |
+| `ON_HOLD` | `OPEN`, `PENDING`, `SOLVED`            | `OPEN`         | —        |
+| `SOLVED`  | `OPEN` (reopen)                        | `OPEN`         | `CLOSED` |
+| `CLOSED`  | — (read-only: no updates, no messages) | —              | —        |
+
+Entering `SOLVED` stamps `solvedAt`; reopening clears it; entering `CLOSED` stamps `closedAt`.
+Ticket numbers come from an atomic increment of `Organization.ticketSequence` inside the
+creation transaction (the row lock serializes concurrent creations). Updates and messages
+lock the ticket row, so each sees fresh state and writes one `TicketEvent` per changed field.
+
 SLA clocks: `firstResponseDueAt` is met by the first `PUBLIC` agent message.
-`resolutionDueAt` is met by the transition to `SOLVED`. v1 uses **calendar time**.
+`resolutionDueAt` is met by the transition to `SOLVED`. v1 uses **calendar time**. Due dates
+come from the organization's default SLA policy at creation and follow priority changes
+while still unmet.
 Business-hours calendars and pausing the clock while `PENDING` are planned later.
+
+### Search
+
+Customer and global search use Prisma `contains` with `mode: 'insensitive'` (a bound
+`ILIKE` parameter). Prisma does not escape LIKE wildcards, so the API escapes `\`, `%` and `_`
+first (`apps/api/src/lib/like.ts`). There is no trigram index yet: matches scan the
+organization's rows, which is fine at current sizes; a `pg_trgm` GIN index is the next step if
+search gets slow.
+
+### Ticket timeline
+
+`TicketEvent` is append-only. Its `data` column has a fixed shape per `type`, defined once in
+`apps/api/src/modules/tickets/ticket-event-data.ts`; anything that writes events must produce
+exactly that shape:
+
+| `type`                                                    | `data`                                    |
+| --------------------------------------------------------- | ----------------------------------------- |
+| `CREATED`                                                 | `{}`                                      |
+| `STATUS_CHANGED` / `PRIORITY_CHANGED`                     | `{ from, to }` (enum values)              |
+| `ASSIGNED`                                                | `{ fromUserId, toUserId }` (UUID or null) |
+| `TEAM_CHANGED`                                            | `{ fromTeamId, toTeamId }` (UUID or null) |
+| `TAGS_CHANGED`                                            | `{ addedTagIds, removedTagIds }` (UUIDs)  |
+| `MESSAGE_ADDED`                                           | `{ messageId, visibility }`               |
+| `SLA_FIRST_RESPONSE_BREACHED` / `SLA_RESOLUTION_BREACHED` | `{ dueAt }` (ISO timestamp)               |
+
+Deleting a team or a tag also writes a `TEAM_CHANGED` / `TAGS_CHANGED` event on every
+ticket that had it (team deletion first unassigns those tickets: Ticket → Team is NO ACTION),
+plus an `AuditLog` entry with the number of tickets affected. Team and tag names are unique per
+organization **regardless of case**: the database index is case-sensitive, so the API checks
+case-insensitively inside a transaction holding the organization's row lock.
+
+These IDs have no foreign keys, so `GET /api/v1/tickets/:number` resolves them **within the
+ticket's organization only**: an ID from another tenant (or a deleted member, team or tag)
+comes back with `name: null`. An event whose stored data doesn't match its schema is logged
+and left out of the response rather than echoed as raw JSON.
 
 ## 2. Organization isolation strategy
 
@@ -128,6 +181,38 @@ deletion — see [§4](#4-schema-changes-in-phase-2)). Services must explicitly 
 tickets before removing a member or deleting a team. This is a business rule
 we want anyway.
 
+### Concurrency (Phase 4D)
+
+Writes that touch the same rows follow **one lock order**, so they wait for each other
+instead of failing or deadlocking:
+
+1. **Referenced rows first.** Ticket writes lock the members, teams and tags they assign
+   `FOR KEY SHARE` while validating them, before touching the ticket. Deleting a team or tag
+   locks that row `FOR UPDATE` first; removing a member locks the membership `FOR UPDATE`
+   (a role change `FOR NO KEY UPDATE`) first.
+2. **Then the Organization row** (ticket numbering; member role changes and removals).
+3. **Then ticket rows.**
+
+Consequences, each covered by a coordinated test in `concurrency.int.test.ts`:
+
+- An assignment that validated a team, tag or member before it is deleted commits first; the
+  delete then sees that ticket, unassigns it and records the matching timeline event.
+- An assignment that arrives after the delete waits for it, then fails validation exactly like
+  an unknown ID (400) — never a 500, never a dangling or silently removed reference.
+- Team and tag name uniqueness is serialized per organization with a transaction-scoped
+  advisory lock (not the Organization row, which ticket creation also locks).
+- Customer edits and organization renames lock the row before reading it, so each audit entry's
+  `from` is the value the previous edit left.
+- Transactions aborted by a deadlock or serialization failure (P2034), or by a foreign key
+  raced by a concurrent delete (P2003), are re-run from scratch up to three times
+  (`apps/api/src/lib/transactions.ts`). This is a safety net; the lock order is the mechanism.
+- Requests that change nothing write nothing: no timeline events, no audit entries.
+
+Case-insensitive uniqueness of team and tag names is enforced twice: by the API (serialized
+as above, for a friendly 409) and by the database, through unique indexes on
+`("organizationId", lower("name"))` (migration `20261026000000_case_insensitive_team_tag_names`),
+which also covers writes that bypass the API. The API maps a violation of either index to 409.
+
 ### Layer 4 — Tests that try to break it
 
 Every tenant-scoped API endpoint gets an integration test that seeds **two**
@@ -181,13 +266,14 @@ The Phase 1 draft moved to `packages/db` with these deliberate changes:
 
 ### Constraints outside `schema.prisma`
 
-| Constraint                                                                                           | Purpose                                                                                       |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `SlaPolicy_one_default_per_org_key` — partial unique index on `("organizationId") WHERE "isDefault"` | At most one default SLA policy per organization.                                              |
-| `Organization_ticketSequence_check`, `Ticket_number_check`                                           | Ticket numbering stays positive.                                                              |
-| `SlaTarget_minutes_check`                                                                            | First response > 0 and resolution ≥ first response.                                           |
-| `Message_author_check`                                                                               | Author columns match `authorType` (a CUSTOMER message has a customer and no user, and so on). |
-| `Message_organizationId_authorCustomerId_fkey` — `DEFERRABLE INITIALLY DEFERRED`                     | Checked at commit so organization cascades complete (see §4).                                 |
+| Constraint                                                                                                                | Purpose                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SlaPolicy_one_default_per_org_key` — partial unique index on `("organizationId") WHERE "isDefault"`                      | At most one default SLA policy per organization.                                                |
+| `Team_organizationId_lower_name_key`, `Tag_organizationId_lower_name_key` — unique on `("organizationId", lower("name"))` | Team and tag names are unique per organization regardless of case (migration `20261026000000`). |
+| `Organization_ticketSequence_check`, `Ticket_number_check`                                                                | Ticket numbering stays positive.                                                                |
+| `SlaTarget_minutes_check`                                                                                                 | First response > 0 and resolution ≥ first response.                                             |
+| `Message_author_check`                                                                                                    | Author columns match `authorType` (a CUSTOMER message has a customer and no user, and so on).   |
+| `Message_organizationId_authorCustomerId_fkey` — `DEFERRABLE INITIALLY DEFERRED`                                          | Checked at commit so organization cascades complete (see §4).                                   |
 
 Prisma does not model these objects. When generating a future migration with
 `pnpm db:migrate`, review the SQL and remove any statement that would drop them.

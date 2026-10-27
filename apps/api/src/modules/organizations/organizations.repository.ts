@@ -19,10 +19,15 @@ export function createOrganizationsRepository(db: Database) {
 
     rename(organizationId: string, name: string, audit: AuditEntry) {
       return db.$transaction(async (tx) => {
+        // Lock the row first, so concurrent renames apply in turn and each audit entry's
+        // "from" is the name the previous rename left.
+        await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE "id" = ${organizationId}::uuid FOR UPDATE`;
         const before = await tx.organization.findUniqueOrThrow({
           where: { id: organizationId },
-          select: { name: true },
+          select: organizationSelect,
         });
+        // Renaming to the current name changes nothing, so nothing is written or audited.
+        if (before.name === name) return before;
         const organization = await tx.organization.update({
           where: { id: organizationId },
           data: { name },
