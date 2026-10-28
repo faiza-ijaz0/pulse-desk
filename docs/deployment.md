@@ -2,9 +2,12 @@
 
 > **Status (2026-10-22):** the repository is prepared for this deployment.
 >
-> - **Done:** the Neon PostgreSQL production database exists, and both current migrations
+> - **Done:** the Neon PostgreSQL production database exists, and its first two migrations
 >   (`20261015000000_init`, `20261018000000_defer_message_customer_fk`) have been applied.
->   `migrate status` reports the schema is up to date.
+> - **Pending (last known status, 2026-10-28):** `20261026000000_case_insensitive_team_tag_names`
+>   and `20261027000000_sla_breach_markers_and_auto_close` haven't been applied to Neon. Apply
+>   them with Step 2 before the API that needs them starts. Check `migrate:status` rather than
+>   relying on this note.
 > - **Not done:** the Render service and the Vercel project haven't been created, and
 >   nothing has been deployed. Steps 3 and 4 and everything under "Verify after deploying"
 >   are still for an operator to do.
@@ -152,9 +155,10 @@ them with `VITE_`.
 
 ## Step 2: Apply migrations (before each release that changes the schema)
 
-> **Done for the current schema.** Both migrations in `packages/db/prisma/migrations/` have
-> been applied to Neon, and `migrate status` reports the schema is up to date. Repeat this
-> step only when a release adds a new migration.
+> **Check before every release.** Run `migrate:status` against Neon: it lists what is pending.
+> At the last check, two migrations were pending (`20261026000000_case_insensitive_team_tag_names`,
+> `20261027000000_sla_breach_markers_and_auto_close`). Apply pending migrations with this step
+> before the API version that needs them starts.
 
 From a trusted machine with this repository checked out at the commit being released:
 
@@ -178,6 +182,30 @@ A `DATABASE_URL` set in the shell wins over the one in your local `.env`. Check 
 that `migrate:status` prints before running `db:deploy`. Apply migrations **before** the new
 API version starts, and keep migrations backwards-compatible with the running version
 (add first, remove later).
+
+**Release order** when a release changes the schema or the API's responses:
+
+1. Apply the migrations (this step).
+2. Deploy the API on Render (Step 3) and wait until `curl -i "$API/health"` returns `200`
+   (with the new `APP_VERSION`, if you set one). `/health` is liveness only and doesn't touch
+   the database. `$API/health/ready` always answers `403`: only Vercel's proxy adds the secret.
+   - **Later releases:** the Vercel deployment that is already live proxies to the new API, so
+     check `curl -i "$WEB/health/ready"` now. It must return `200 {"status":"ready",…}` before
+     you deploy the web app; a `503` means the API can't reach the database, so stop and fix it.
+   - **First release:** there is no Vercel deployment yet, so the database can't be checked
+     through the proxy before the web app exists. Go on to step 3, then check
+     `$WEB/health/ready` straight away, and treat a `503` as a failed release.
+
+   Don't call `$API/health/ready` with the secret yourself: it would put the secret in your
+   shell history.
+
+3. Deploy the web app on Vercel. It validates API responses strictly, so a web build that
+   expects new fields (e.g. the SLA breach markers and event `actorType`) can't load ticket
+   pages from an older API. Its deployment also carries the proxy (`apps/web/vercel.json`), so
+   on a first release this is the first point where `$WEB/health/ready` can be checked.
+
+If Render's Auto-Deploy is on, or Vercel builds every push, one push starts both at once:
+deploy such releases by hand, in this order.
 
 > **Never run any of these against production:** `pnpm db:seed`, `pnpm db:migrate` /
 > `prisma migrate dev`, `prisma migrate reset`, `prisma db push`, `pnpm test:integration`,
@@ -453,6 +481,7 @@ The following was run on a development machine. It is not a deployment.
 - Static validation of `vercel.json`, described above.
 - Manual `curl` checks against a locally running production build of the API.
 
-Separately, the Neon production database was created and both current migrations were
-applied (`migrate status`: up to date). The Render service and the Vercel deployment still
+Separately, the Neon production database was created and its first two migrations were
+applied (`migrate status` was up to date at the time). Later migrations are applied per
+release (Step 2). The Render service and the Vercel deployment still
 have to be created from the dashboards and verified with the steps above.
