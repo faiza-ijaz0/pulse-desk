@@ -32,7 +32,7 @@ critical user journeys are covered end-to-end.
 
 ```
 pnpm test:integration (Vitest "integration" projects in packages/db, then apps/api)
- └─ globalSetup: refuse to run unless TEST_DATABASE_URL is set and differs from DATABASE_URL,
+ └─ globalSetup: refuse to run unless the test database passes the safety check below,
     then `prisma migrate reset --force` — applies the committed migration SQL from scratch
     (shared helper: `@pulsedesk/db/testing`)
      └─ tests create uniquely-named organizations and clean up after themselves
@@ -40,6 +40,34 @@ pnpm test:integration (Vitest "integration" projects in packages/db, then apps/a
 
 A missing test database is a **failure**, never a silent skip. Integration files run
 serially (one database); unit and component tests run in parallel.
+
+**Which database may be wiped.** `assertSafeTestDatabase`
+(`packages/db/src/test-database-target.ts`) runs on the final environment (shell variables
+win over `.env`) before Prisma or any test connects. It is used by the integration reset,
+by both packages' test helpers, and by `e2e/playwright.config.ts` before any server starts. It
+refuses, without printing credentials, unless:
+
+- `TEST_DATABASE_URL` is a `postgresql://` URL naming exactly the database `pulsedesk_test`;
+- its host is this machine (`localhost`, `127.0.0.1` or `::1`) — no remote host is allowed,
+  whatever the database is called;
+- it isn't the development database: host (local spellings count as one), port and database
+  name are compared after parsing, so usernames, query strings and percent-encoding can't make
+  them look different;
+- neither URL uses query parameters that redirect the connection (`host`, `port`, `dbname`,
+  `service`, …), and the test URL uses only harmless ones (`schema`, `sslmode`, timeouts…);
+- both URLs state their port (clients would otherwise fill it from `PGPORT`) and neither
+  hostname is percent-encoded (`pg` decodes `%6Cocalhost` to `localhost`).
+
+`DATABASE_URL` is required for the integration reset. E2E compares it only when it is set,
+because CI's E2E job has no development database.
+
+`packages/db/test/migration-upgrade.int.test.ts` runs migrations inside a transaction it
+always rolls back. Before it does, `assertSafeInTransaction`
+(`packages/db/src/migration-sql-guard.ts`) refuses migration SQL that could end or break
+that transaction: transaction control, `CONCURRENTLY`, `VACUUM`, `SET`/`search_path`
+changes, names qualified with `public`, `dblink`, dynamic SQL and similar. It is a
+conservative scanner (comments, strings and quoted names are skipped), not a full SQL
+parser: anything it can't scan is refused, and a refusal means "check by hand".
 
 ## Current suites (Phase 3)
 

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { createPrismaClient, type Database } from '../src/client.ts';
+import { assertSafeTestDatabase } from '../src/test-database-target.ts';
 
+/** The test database, after the same safety check the reset applies (these tests write to it). */
 export function testDatabaseUrl(): string {
-  const url = process.env.TEST_DATABASE_URL;
-  if (!url) throw new Error('TEST_DATABASE_URL is not set');
-  return url;
+  return assertSafeTestDatabase(process.env).url;
 }
 
 export function createTestClient(options: { tenantGuard?: boolean } = {}): Database {

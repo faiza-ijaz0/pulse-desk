@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createPrismaClient, loadWorkspaceEnv, type Database, type Role } from '@pulsedesk/db';
+import { assertSafeTestDatabase } from '@pulsedesk/db/testing';
 import request from 'supertest';
 import { createApiRouter } from '../../src/api-router.ts';
 import { createApp } from '../../src/app.ts';
@@ -13,10 +14,9 @@ loadWorkspaceEnv();
 export const TEST_EMAIL_DOMAIN = 'int.pulsedesk.test';
 export const PASSWORD = 'integration-test-password';
 
+/** The test database, after the same safety check the reset applies (these tests write to it). */
 export function testDatabaseUrl(): string {
-  const url = process.env.TEST_DATABASE_URL;
-  if (!url) throw new Error('TEST_DATABASE_URL is not set');
-  return url;
+  return assertSafeTestDatabase(process.env).url;
 }
 
 /** A real client against the test database, with the tenant guard on (as in development). */

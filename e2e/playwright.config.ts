@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
+// Imported by path: the E2E package doesn't depend on @pulsedesk/db, and this module is pure.
+import { assertSafeTestDatabase, describeTarget } from '../packages/db/src/test-database-target.ts';
 import { E2E_API_VERSION } from './support/stack.ts';
 import { AUTH_STATE } from './support/users.ts';
 
@@ -18,14 +20,14 @@ const rootEnv = new URL('../.env', import.meta.url);
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
 
 // The suite signs up real users, so it runs against the disposable integration-test
-// database (migrated before the API starts), never the development database.
-const databaseUrl = process.env.TEST_DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error(
-    'TEST_DATABASE_URL is not set. The E2E suite needs a disposable PostgreSQL database ' +
-      '(see docs/testing.md).',
-  );
-}
+// database (migrated before the API starts), never the development database. The same
+// policy as the integration reset: a local database named pulsedesk_test that isn't the
+// development database (see docs/testing.md). Checked here, before any server starts. CI's
+// E2E job has no development database, so DATABASE_URL is compared only when it is set.
+const { url: databaseUrl, target } = assertSafeTestDatabase(process.env, {
+  developmentUrl: 'if-set',
+});
+process.stdout.write(`E2E database: ${describeTarget(target)}\n`);
 
 /**
  * End-to-end tests run against production builds of both apps (`pnpm build` first):
