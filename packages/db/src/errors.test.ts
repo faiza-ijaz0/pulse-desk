@@ -15,6 +15,19 @@ describe('database error classification', () => {
     expect(databaseUnavailableCode(init)).toBe('P1001');
   });
 
+  it('flags raw socket failures that Prisma passes through as unavailable', () => {
+    // Regression: with host `localhost`, a stopped server surfaced as ECONNREFUSED (not
+    // P1001) and the API answered 500 instead of 503.
+    for (const code of ['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT']) {
+      expect(databaseUnavailableCode(known(code))).toBe(code);
+    }
+  });
+
+  it('ignores socket errors that did not come from Prisma', () => {
+    const socketError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+    expect(databaseUnavailableCode(socketError)).toBeUndefined();
+  });
+
   it('does not treat query errors or unknown errors as an outage', () => {
     expect(databaseUnavailableCode(known('P2002'))).toBeUndefined();
     expect(databaseUnavailableCode(new Error('boom'))).toBeUndefined();

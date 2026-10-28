@@ -5,6 +5,11 @@ import { Prisma } from './generated/prisma/client.ts';
  * query is wrong": bad credentials (P1000), unreachable server (P1001), timeouts (P1002,
  * P1008), missing database (P1003), dropped connection (P1017), pool exhausted (P2024).
  * https://www.prisma.io/docs/orm/reference/error-reference
+ *
+ * The socket codes are the same outages when the pg adapter can't recognize the error and
+ * Prisma passes the raw code through, e.g. the AggregateError Node throws when `localhost`
+ * refuses on both ::1 and 127.0.0.1 surfaces as `ECONNREFUSED` instead of P1001. They count
+ * only on Prisma errors (see prismaErrorCode), so other services' socket errors don't.
  */
 const UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
   'P1000',
@@ -14,6 +19,10 @@ const UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
   'P1008',
   'P1017',
   'P2024',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'ECONNRESET',
+  'ETIMEDOUT',
 ]);
 
 /** The Prisma error code (e.g. `P2002`, `P1000`) of a Prisma error, if it has one. */
