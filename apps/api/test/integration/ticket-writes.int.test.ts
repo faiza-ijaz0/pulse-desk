@@ -202,6 +202,8 @@ describe('POST /api/v1/tickets', () => {
       firstRespondedAt: null,
       solvedAt: null,
       closedAt: null,
+      firstResponseBreachedAt: null,
+      resolutionBreachedAt: null,
     });
     const createdAt = Date.parse(ticket.createdAt);
     expect(createdAt).toBeGreaterThanOrEqual(before - 1000);
@@ -220,6 +222,7 @@ describe('POST /api/v1/tickets', () => {
     expect(created.timeline[0]).toMatchObject({
       type: 'CREATED',
       data: {},
+      actorType: 'USER',
       actor: { id: desk.agent.userId },
     });
 
@@ -416,6 +419,12 @@ describe('PATCH /api/v1/tickets/:number', () => {
       type: 'TAGS_CHANGED',
       data: { added: [{ id: desk.tagIds.billing, name: 'billing' }], removed: [] },
     });
+    // People made these changes through the API: USER events, stored and returned.
+    expect(events.map((e) => e.actorType)).toEqual(events.map(() => 'USER'));
+    expect(updated.timeline.map((e) => [e.actorType, e.actor?.id])).toEqual([
+      ['USER', desk.owner.userId],
+      ...events.slice(1).map(() => ['USER', desk.agent.userId]),
+    ]);
   });
 
   it('writes no events and leaves updatedAt alone when nothing changes', async () => {
@@ -606,6 +615,7 @@ describe('POST /api/v1/tickets/:number/messages', () => {
     expect(first.ticket.firstRespondedAt).toBe(message.createdAt);
     expect(first.timeline.at(-1)).toMatchObject({
       type: 'MESSAGE_ADDED',
+      actorType: 'USER',
       actor: { id: desk.agent.userId },
       data: { messageId: message.id, visibility: 'PUBLIC' },
     });

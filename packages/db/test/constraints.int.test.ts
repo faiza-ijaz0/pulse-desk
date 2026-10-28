@@ -286,6 +286,184 @@ describe('hand-written constraints from the migration', () => {
     ).rejects.toThrow(/SlaTarget_minutes_check|check constraint/i);
   });
 
+  describe('SLA breach markers, auto-close and system events', () => {
+    async function ticketIn(label: string) {
+      const { organization, customer } = await createOrgWithCustomer(db, label);
+      const ticket = await db.ticket.create({
+        data: {
+          organizationId: organization.id,
+          number: 1,
+          subject: 'SLA',
+          customerId: customer.id,
+        },
+      });
+      return { organization, ticket };
+    }
+
+    it('starts new organizations with auto-close enabled after four days', async () => {
+      const { organization } = await createOrgWithCustomer(db, 'auto-close-default');
+      expect(organization).toMatchObject({ autoCloseEnabled: true, autoCloseAfterMinutes: 5760 });
+    });
+
+    it('keeps the delay while auto-close is disabled, and bounds it', async () => {
+      const { organization } = await createOrgWithCustomer(db, 'auto-close-bounds');
+      const set = (data: { autoCloseEnabled?: boolean; autoCloseAfterMinutes?: number }) =>
+        db.organization.update({ where: { id: organization.id }, data });
+      await expect(set({ autoCloseEnabled: false })).resolves.toMatchObject({
+        autoCloseEnabled: false,
+        autoCloseAfterMinutes: 5760,
+      });
+      for (const minutes of [0, -1, 525_601]) {
+        await expect(set({ autoCloseAfterMinutes: minutes }), String(minutes)).rejects.toThrow(
+          /Organization_autoCloseAfterMinutes_check|check constraint/i,
+        );
+      }
+      await expect(set({ autoCloseAfterMinutes: 525_600 })).resolves.toBeDefined();
+    });
+
+    it('starts tickets without breach markers and events as USER', async () => {
+      const { organization, ticket } = await ticketIn('sla-defaults');
+      expect(ticket).toMatchObject({ firstResponseBreachedAt: null, resolutionBreachedAt: null });
+      const event = await db.ticketEvent.create({
+        data: { organizationId: organization.id, ticketId: ticket.id, type: 'CREATED' },
+      });
+      expect(event).toMatchObject({ actorType: 'USER', actorUserId: null });
+    });
+
+    it('keeps an event USER, with no user, after its user is deleted', async () => {
+      const { organization, ticket } = await ticketIn('deleted-actor');
+      const user = await db.user.create({
+        data: {
+          email: `deleted-actor-${organization.slug}@example.com`,
+          name: 'Leaver',
+          passwordHash: 'x',
+        },
+      });
+      const event = await db.ticketEvent.create({
+        data: {
+          organizationId: organization.id,
+          ticketId: ticket.id,
+          actorUserId: user.id,
+          type: 'STATUS_CHANGED',
+          data: { from: 'OPEN', to: 'PENDING' },
+        },
+      });
+      expect(event).toMatchObject({ actorType: 'USER', actorUserId: user.id });
+
+      await db.user.delete({ where: { id: user.id } });
+
+      const after = await db.ticketEvent.findUniqueOrThrow({
+        where: { id: event.id, organizationId: organization.id },
+      });
+      // SetNull removes the user; the event still says a person did it, never the system.
+      expect(after).toMatchObject({ actorType: 'USER', actorUserId: null });
+    });
+
+    it('rejects a SYSTEM event that names a user', async () => {
+      const { organization, ticket } = await ticketIn('system-actor');
+      const user = await db.user.create({
+        data: {
+          email: `system-actor-${organization.slug}@example.com`,
+          name: 'U',
+          passwordHash: 'x',
+        },
+      });
+      const event = (actorUserId: string | null) =>
+        db.ticketEvent.create({
+          data: {
+            organizationId: organization.id,
+            ticketId: ticket.id,
+            actorType: 'SYSTEM',
+            actorUserId,
+            type: 'STATUS_CHANGED',
+            data: { from: 'SOLVED', to: 'CLOSED' },
+          },
+        });
+      await expect(event(user.id)).rejects.toThrow(
+        /TicketEvent_system_actor_check|check constraint/i,
+      );
+      await expect(event(null)).resolves.toMatchObject({ actorType: 'SYSTEM' });
+    });
+
+    it('allows one breach event per ticket and target, but repeats of other events', async () => {
+      const { organization, ticket } = await ticketIn('one-breach');
+      const event = (type: 'SLA_FIRST_RESPONSE_BREACHED' | 'SLA_RESOLUTION_BREACHED' | 'CREATED') =>
+        db.ticketEvent.create({
+          data: {
+            organizationId: organization.id,
+            ticketId: ticket.id,
+            actorType: 'SYSTEM',
+            type,
+            data: type === 'CREATED' ? {} : { dueAt: '2026-10-27T08:00:00.000Z' },
+          },
+        });
+      await event('SLA_FIRST_RESPONSE_BREACHED');
+      const error: unknown = await event('SLA_FIRST_RESPONSE_BREACHED').catch((e: unknown) => e);
+      expect(prismaErrorCode(error)).toBe('P2002');
+      expect(String(error)).toContain('TicketEvent_one_sla_breach_per_ticket_key');
+      await expect(event('SLA_RESOLUTION_BREACHED')).resolves.toBeDefined();
+      await event('CREATED');
+      await expect(event('CREATED')).resolves.toBeDefined();
+    });
+
+    it('makes the migration stop, naming the tickets, if duplicate breach events exist', async () => {
+      const { organization, ticket } = await ticketIn('breach-guard');
+      const migration = readFileSync(
+        new URL(
+          '../prisma/migrations/20261027000000_sla_breach_markers_and_auto_close/migration.sql',
+          import.meta.url,
+        ),
+        'utf8',
+      );
+      const guard = migration.slice(migration.indexOf('DO $$'), migration.indexOf('$$;') + 3);
+      class Rollback extends Error {}
+
+      // As above: the index is dropped only inside a transaction that is always rolled back.
+      const run = db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('DROP INDEX "TicketEvent_one_sla_breach_per_ticket_key"');
+        for (let i = 0; i < 2; i++) {
+          await tx.ticketEvent.create({
+            data: {
+              organizationId: organization.id,
+              ticketId: ticket.id,
+              actorType: 'SYSTEM',
+              type: 'SLA_RESOLUTION_BREACHED',
+              data: { dueAt: '2026-10-27T08:00:00.000Z' },
+            },
+          });
+        }
+        const message = String(await tx.$executeRawUnsafe(guard).catch((e: unknown) => e));
+        expect(message).toContain('more than one SLA breach event of a kind');
+        expect(message).toContain(organization.id);
+        expect(message).toContain(ticket.id);
+        expect(message).toContain('SLA_RESOLUTION_BREACHED');
+        throw new Rollback();
+      });
+      await expect(run).rejects.toBeInstanceOf(Rollback);
+
+      const index = await db.$queryRaw<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM pg_indexes
+        WHERE indexname = 'TicketEvent_one_sla_breach_per_ticket_key'`;
+      expect(index).toEqual([{ n: 1 }]);
+    });
+
+    it('creates the partial sweep indexes', async () => {
+      const rows = await db.$queryRaw<{ indexname: string }[]>`
+        SELECT indexname FROM pg_indexes
+        WHERE tablename = 'Ticket' AND indexname IN (
+          'Ticket_auto_close_sweep_idx',
+          'Ticket_first_response_breach_sweep_idx',
+          'Ticket_resolution_breach_sweep_idx'
+        )
+        ORDER BY indexname`;
+      expect(rows.map((r) => r.indexname)).toEqual([
+        'Ticket_auto_close_sweep_idx',
+        'Ticket_first_response_breach_sweep_idx',
+        'Ticket_resolution_breach_sweep_idx',
+      ]);
+    });
+  });
+
   it('rejects a customer-authored message without a customer', async () => {
     const { organization, customer } = await createOrgWithCustomer(db, 'msg');
     const ticket = await db.ticket.create({

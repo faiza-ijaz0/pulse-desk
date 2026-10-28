@@ -76,6 +76,13 @@ const STANDALONE = new Set<TimelineEvent['type']>([
   'SLA_RESOLUTION_BREACHED',
 ]);
 
+/** Who to name before the event text: PulseDesk for system events, never for a deleted user. */
+function actorName(event: TimelineEvent): string | null {
+  if (STANDALONE.has(event.type)) return null;
+  if (event.actorType === 'SYSTEM') return 'PulseDesk';
+  return event.actor?.name ?? 'A former member';
+}
+
 export function TicketTimeline({ events }: { events: TimelineEvent[] }) {
   if (events.length === 0) {
     return <p className="text-sm text-muted-foreground">No activity recorded yet.</p>;
@@ -87,7 +94,7 @@ export function TicketTimeline({ events }: { events: TimelineEvent[] }) {
       <ol aria-label="Activity" className="relative grid gap-4">
         {events.map((event) => {
           const { text, icon: Icon, danger } = describe(event);
-          const actor = STANDALONE.has(event.type) ? null : (event.actor?.name ?? 'PulseDesk');
+          const actor = actorName(event);
           return (
             <li key={event.id} className="relative flex gap-3">
               <span

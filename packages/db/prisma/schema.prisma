@@ -60,6 +60,13 @@ enum TicketEventType {
   SLA_RESOLUTION_BREACHED
 }
 
+// Who caused a ticket event. A SYSTEM event (SLA sweeps, auto-close) never has a user; a USER
+// event's user is null only once that account has been deleted.
+enum TicketEventActorType {
+  USER
+  SYSTEM
+}
+
 // ───────────────────────── Global (not tenant-scoped) ─────────────────────────
 
 model User {
@@ -98,12 +105,17 @@ model Session {
 }
 
 model Organization {
-  id             String   @id @default(uuid()) @db.Uuid
-  name           String
-  slug           String   @unique
-  ticketSequence Int      @default(0) // per-org human ticket numbers (#1, #2, …)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String
+  slug                  String   @unique
+  ticketSequence        Int      @default(0) // per-org human ticket numbers (#1, #2, …)
+  // Solved tickets close automatically this long after solvedAt (default 4 days), unless
+  // disabled. The delay is kept while disabled. Organizations that existed before the
+  // setting was added start disabled (see its migration).
+  autoCloseEnabled      Boolean  @default(true)
+  autoCloseAfterMinutes Int      @default(5760)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   memberships Membership[]
   teams       Team[]
@@ -234,6 +246,9 @@ model SlaTarget {
   @@unique([slaPolicyId, priority])
 }
 
+// The SLA and auto-close sweeps use partial indexes created by hand in a migration (Prisma
+// can't model them without a preview feature): "Ticket_first_response_breach_sweep_idx",
+// "Ticket_resolution_breach_sweep_idx" and "Ticket_auto_close_sweep_idx".
 model Ticket {
   id             String         @id @default(uuid()) @db.Uuid
   organizationId String         @db.Uuid
@@ -247,19 +262,23 @@ model Ticket {
   teamId         String?        @db.Uuid
   slaPolicyId    String?        @db.Uuid
 
-  firstResponseDueAt DateTime?
-  resolutionDueAt    DateTime?
-  firstRespondedAt   DateTime?
-  solvedAt           DateTime?
-  closedAt           DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  firstResponseDueAt      DateTime?
+  resolutionDueAt         DateTime?
+  firstRespondedAt        DateTime?
+  solvedAt                DateTime?
+  closedAt                DateTime?
+  // When a breach was recorded (with its SLA_*_BREACHED event). Set once, never cleared:
+  // a breach stays history even if the due date later moves out.
+  firstResponseBreachedAt DateTime?
+  resolutionBreachedAt    DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer     Customer     @relation(fields: [organizationId, customerId], references: [organizationId, id], onDelete: NoAction)
-  assignee     Membership?  @relation("TicketAssignee", fields: [organizationId, assigneeUserId], references: [organizationId, userId], onDelete: NoAction)
-  team         Team?        @relation(fields: [organizationId, teamId], references: [organizationId, id], onDelete: NoAction)
-  slaPolicy    SlaPolicy?   @relation(fields: [organizationId, slaPolicyId], references: [organizationId, id], onDelete: NoAction)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer      @relation(fields: [organizationId, customerId], references: [organizationId, id], onDelete: NoAction)
+  assignee     Membership?   @relation("TicketAssignee", fields: [organizationId, assigneeUserId], references: [organizationId, userId], onDelete: NoAction)
+  team         Team?         @relation(fields: [organizationId, teamId], references: [organizationId, id], onDelete: NoAction)
+  slaPolicy    SlaPolicy?    @relation(fields: [organizationId, slaPolicyId], references: [organizationId, id], onDelete: NoAction)
   messages     Message[]
   events       TicketEvent[]
   tags         TicketTag[]
@@ -322,14 +341,18 @@ model TicketTag {
 }
 
 // Append-only ticket timeline; also the source of truth for analytics.
+// At most one SLA breach event per ticket and target: "TicketEvent_one_sla_breach_per_ticket_key",
+// a partial unique index on ("ticketId", "type"), and "TicketEvent_system_actor_check" (a
+// SYSTEM event has no user) are created by hand in a migration (Prisma can't model them).
 model TicketEvent {
-  id             String          @id @default(uuid()) @db.Uuid
-  organizationId String          @db.Uuid
-  ticketId       String          @db.Uuid
-  actorUserId    String?         @db.Uuid
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  ticketId       String               @db.Uuid
+  actorType      TicketEventActorType @default(USER)
+  actorUserId    String?              @db.Uuid
   type           TicketEventType
-  data           Json            @default("{}")
-  createdAt      DateTime        @default(now())
+  data           Json                 @default("{}")
+  createdAt      DateTime             @default(now())
 
   ticket Ticket @relation(fields: [organizationId, ticketId], references: [organizationId, id], onDelete: Cascade)
   actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)

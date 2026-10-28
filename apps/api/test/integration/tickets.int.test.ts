@@ -273,13 +273,20 @@ async function addTicketOneHistory() {
   });
   await message({ authorType: 'SYSTEM', body: 'Ticket merged from #12.', createdAt: at(7) });
 
-  const event = (minutes: number, type: TicketEventType, data: object, actorUserId?: string) =>
+  const event = (
+    minutes: number,
+    type: TicketEventType,
+    data: object,
+    actorUserId?: string,
+    actorType: 'USER' | 'SYSTEM' = 'USER',
+  ) =>
     db.ticketEvent.create({
       data: {
         organizationId,
         ticketId,
         type,
         data,
+        actorType,
         actorUserId: actorUserId ?? null,
         createdAt: at(minutes),
       },
@@ -296,7 +303,13 @@ async function addTicketOneHistory() {
   await event(8, 'STATUS_CHANGED', { from: 'OPEN', to: 'PENDING' }, desk.owner.userId);
   // Written by a buggy or future version: must be dropped, never echoed back as-is.
   await event(9, 'STATUS_CHANGED', { from: 'OPEN', to: 'LOST', secret: 'raw-json' });
-  await event(10, 'SLA_FIRST_RESPONSE_BREACHED', { dueAt: at(9).toISOString() });
+  await event(
+    10,
+    'SLA_FIRST_RESPONSE_BREACHED',
+    { dueAt: at(9).toISOString() },
+    undefined,
+    'SYSTEM',
+  );
 }
 
 beforeAll(async () => {
@@ -643,7 +656,8 @@ describe('GET /api/v1/tickets/:number', () => {
       'SLA_FIRST_RESPONSE_BREACHED',
     ]);
     const [created, assigned, team, tags, reassigned, , status, breach] = timeline;
-    expect(created).toMatchObject({ actor: null, data: {} });
+    // A USER event without an actor: its account was deleted (here: never set).
+    expect(created).toMatchObject({ actorType: 'USER', actor: null, data: {} });
     expect(assigned).toMatchObject({
       actor: { id: desk.owner.userId, name: 'Owner tickets-a' },
       data: { from: null, to: { id: desk.owner.userId, name: 'Owner tickets-a' } },
@@ -664,6 +678,7 @@ describe('GET /api/v1/tickets/:number', () => {
       to: { id: desk.owner.userId, name: 'Owner tickets-a' },
     });
     expect(status?.data).toEqual({ from: 'OPEN', to: 'PENDING' });
+    expect(breach).toMatchObject({ actorType: 'SYSTEM', actor: null });
     expect(breach?.data).toEqual({ dueAt: at(9).toISOString() });
 
     const text = JSON.stringify(timeline);
@@ -682,6 +697,37 @@ describe('GET /api/v1/tickets/:number', () => {
     const body = await detail(desk.owner.client, 3);
     expect(body).toMatchObject({ conversation: [], internalNotes: [], timeline: [] });
     expect(body.ticket).toMatchObject({ number: 3, assignee: null, team: null, tags: [] });
+  });
+
+  it('returns recorded breach markers as ISO timestamps, in the list and the detail', async () => {
+    const fixture = TICKETS.find((t) => t.number === 2)!;
+    const where = {
+      organizationId_id: { organizationId: desk.owner.organizationId, id: desk.ticketIds[2]! },
+    };
+    // An explicit updatedAt stops Prisma from bumping it, so the sort-order tests are unaffected.
+    const restore = { updatedAt: at(fixture.updated) };
+    await db.ticket.update({
+      where,
+      data: { firstResponseBreachedAt: at(30), resolutionBreachedAt: at(240), ...restore },
+    });
+    try {
+      const recorded = {
+        firstResponseBreachedAt: at(30).toISOString(),
+        resolutionBreachedAt: at(240).toISOString(),
+      };
+      const rows = await list(desk.owner.client);
+      expect(rows.find((t) => t.number === 2)).toMatchObject(recorded);
+      expect(rows.find((t) => t.number === 1)).toMatchObject({
+        firstResponseBreachedAt: null,
+        resolutionBreachedAt: null,
+      });
+      expect((await detail(desk.owner.client, 2)).ticket).toMatchObject(recorded);
+    } finally {
+      await db.ticket.update({
+        where,
+        data: { firstResponseBreachedAt: null, resolutionBreachedAt: null, ...restore },
+      });
+    }
   });
 
   it('lets a multi-organization user see each organization’s ticket after switching', async () => {

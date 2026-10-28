@@ -46,6 +46,8 @@ export function toSummary(row: TicketSummaryRow): TicketSummary {
     firstRespondedAt: iso(row.firstRespondedAt),
     solvedAt: iso(row.solvedAt),
     closedAt: iso(row.closedAt),
+    firstResponseBreachedAt: iso(row.firstResponseBreachedAt),
+    resolutionBreachedAt: iso(row.resolutionBreachedAt),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -186,6 +188,7 @@ export function createTicketsService({
           id: row.id,
           type: event.type,
           createdAt: row.createdAt.toISOString(),
+          actorType: row.actorType,
           actor: row.actor,
           data: resolvedData(event, refs),
         }) as TimelineEvent,

@@ -24,6 +24,11 @@ import type {
 
 const MINUTE = 60_000;
 
+/** A due date at or before `now` has been reached: the target can only be met late now. */
+function hasPassed(dueAt: Date | null, now: Date): boolean {
+  return dueAt !== null && dueAt.getTime() <= now.getTime();
+}
+
 /** Due dates for a ticket opened at `openedAt` under `target` (calendar time, v1). */
 function dueDates(openedAt: Date, target: SlaTarget | null) {
   if (!target) return { firstResponseDueAt: null, resolutionDueAt: null };
@@ -151,16 +156,20 @@ export function createTicketWrites({
             type: 'PRIORITY_CHANGED',
             data: { from: ticket.priority, to: input.priority },
           });
-          // Targets that are still open follow the new priority; met ones are history.
+          // Targets that are still open follow the new priority; met ones are history, and so
+          // are missed ones: a due date already reached stays, so a priority change can't erase
+          // a breach before the sweep records it.
           const target = ticket.slaPolicyId
             ? await scope.slaTarget(ticket.slaPolicyId, input.priority)
             : null;
           if (target) {
             const due = dueDates(ticket.createdAt, target);
-            if (ticket.firstRespondedAt === null) {
+            if (ticket.firstRespondedAt === null && !hasPassed(ticket.firstResponseDueAt, now)) {
               changes.firstResponseDueAt = due.firstResponseDueAt;
             }
-            if (ticket.solvedAt === null) changes.resolutionDueAt = due.resolutionDueAt;
+            if (ticket.solvedAt === null && !hasPassed(ticket.resolutionDueAt, now)) {
+              changes.resolutionDueAt = due.resolutionDueAt;
+            }
           }
         }
 

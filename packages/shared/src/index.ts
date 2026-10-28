@@ -7,6 +7,7 @@ export * from './organizations.ts';
 export * from './roles.ts';
 export * from './search-text.ts';
 export * from './search.ts';
+export * from './sla.ts';
 export * from './tags.ts';
 export * from './teams.ts';
 export * from './ticket-lifecycle.ts';

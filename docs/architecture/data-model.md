@@ -79,8 +79,39 @@ lock the ticket row, so each sees fresh state and writes one `TicketEvent` per c
 SLA clocks: `firstResponseDueAt` is met by the first `PUBLIC` agent message.
 `resolutionDueAt` is met by the transition to `SOLVED`. v1 uses **calendar time**. Due dates
 come from the organization's default SLA policy at creation and follow priority changes
-while still unmet.
+while still unmet. A due date that has already been reached is kept, so changing the
+priority can't turn a missed target back into one on track.
 Business-hours calendars and pausing the clock while `PENDING` are planned later.
+
+SLA state is evaluated by one pure function, `evaluateSla(ticket, now)` in
+`packages/shared/src/sla.ts`, so every caller classifies a ticket the same way at a given moment:
+
+- Each target is `none` (no due date: no SLA policy applied at creation), `on_track`,
+  `at_risk` (no more than 25 % of the window from creation to due date left), `met` or
+  `breached`. The ticket's overall status is the most urgent of the two, a breach first
+  (`resolution_breached`, then `first_response_breached`).
+- At exactly the due date a target is still met; one millisecond later an unmet target is
+  breached. A reply or solve stamped exactly at the due date meets it.
+- First response stops only at `firstRespondedAt`. Internal notes never set it, and solving a
+  ticket without a public reply doesn't meet it: the clock keeps running against the due date.
+- Resolution stops when the ticket leaves the active statuses (`solvedAt`, or `closedAt` if a
+  closed ticket has none). Reopening keeps `resolutionDueAt`, so a ticket reopened after its due
+  date is breached again at once.
+- Due dates are used as stored; evaluation never recalculates them.
+- A recorded breach is history. `firstResponseBreachedAt` / `resolutionBreachedAt` are set
+  once, in the same transaction as the matching `SLA_*_BREACHED` event, and never cleared; while
+  set, that target evaluates as `breached` whatever happens to the ticket or its due date later.
+  They hold the time the breach was recorded (as does the event's `createdAt`); the event's
+  `data.dueAt` is the deadline that was missed. Nothing is backfilled for tickets that existed
+  before the markers (migration `20261027000000_sla_breach_markers_and_auto_close`).
+- A first-response breach is recorded for any ticket without a public agent reply by the due
+  date — or with a late one — even if it is `SOLVED` or `CLOSED`.
+
+Solved tickets close automatically `Organization.autoCloseAfterMinutes` after `solvedAt`
+(default 5760, four days; 1 minute to 1 year) when `Organization.autoCloseEnabled` is true. The
+delay is kept while auto-close is disabled. Organizations created after the setting was added
+start enabled; those that already existed start **disabled**, keeping the behaviour they had
+(nothing closed automatically) until an admin turns it on.
 
 ### Search
 
@@ -105,6 +136,10 @@ exactly that shape:
 | `TAGS_CHANGED`                                            | `{ addedTagIds, removedTagIds }` (UUIDs)  |
 | `MESSAGE_ADDED`                                           | `{ messageId, visibility }`               |
 | `SLA_FIRST_RESPONSE_BREACHED` / `SLA_RESOLUTION_BREACHED` | `{ dueAt }` (ISO timestamp)               |
+
+`actorType` says who caused an event: `USER` (with `actorUserId`, which becomes null if the
+account is deleted) or `SYSTEM` (SLA sweeps, auto-close; never has a user). A null user alone
+therefore never means "system". A ticket has at most one breach event per target.
 
 Deleting a team or a tag also writes a `TEAM_CHANGED` / `TAGS_CHANGED` event on every
 ticket that had it (team deletion first unassigns those tickets: Ticket → Team is NO ACTION),
@@ -275,5 +310,19 @@ The Phase 1 draft moved to `packages/db` with these deliberate changes:
 | `Message_author_check`                                                                                                    | Author columns match `authorType` (a CUSTOMER message has a customer and no user, and so on).   |
 | `Message_organizationId_authorCustomerId_fkey` — `DEFERRABLE INITIALLY DEFERRED`                                          | Checked at commit so organization cascades complete (see §4).                                   |
 
+Added for SLA automation (migration `20261027000000_sla_breach_markers_and_auto_close`):
+
+| Constraint                                                                                                                                                              | Purpose                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `TicketEvent_one_sla_breach_per_ticket_key` — partial unique index on `("ticketId", "type") WHERE "type" IN ('SLA_FIRST_RESPONSE_BREACHED', 'SLA_RESOLUTION_BREACHED')` | At most one breach event per ticket and target, so a repeated or concurrent sweep can't record a breach twice.                 |
+| `TicketEvent_system_actor_check`                                                                                                                                        | A `SYSTEM` event has no `actorUserId`.                                                                                         |
+| `Organization_autoCloseAfterMinutes_check`                                                                                                                              | Auto-close delay between 1 minute and 1 year.                                                                                  |
+| `Ticket_first_response_breach_sweep_idx` — partial index on `("firstResponseDueAt")`                                                                                    | Tickets with a first-response due date, no breach recorded, and no reply or a late one. The sweep query repeats the predicate. |
+| `Ticket_resolution_breach_sweep_idx` — partial index on `("resolutionDueAt")`                                                                                           | Tickets with a resolution due date, no breach recorded, and unsolved or solved late.                                           |
+| `Ticket_auto_close_sweep_idx` — partial index on `("solvedAt") WHERE "status" = 'SOLVED'`                                                                               | Solved tickets, oldest solve first.                                                                                            |
+
 Prisma does not model these objects. When generating a future migration with
-`pnpm db:migrate`, review the SQL and remove any statement that would drop them.
+`pnpm db:migrate`, review the SQL and remove any statement that would drop them. (Prisma 7.10
+can express partial indexes behind the `partialIndexes` preview feature; it is not enabled, so
+these stay hand-written like the others. Expression indexes such as `lower("name")` can't be
+expressed at all.)

@@ -182,6 +182,8 @@ describe('ticketDetailResponseSchema', () => {
     firstRespondedAt: null,
     solvedAt: null,
     closedAt: null,
+    firstResponseBreachedAt: null,
+    resolutionBreachedAt: null,
     createdAt: '2026-10-20T08:30:00.000Z',
     updatedAt: '2026-10-20T08:30:00.000Z',
   };
@@ -210,6 +212,7 @@ describe('ticketDetailResponseSchema', () => {
     const event = {
       id: TAG_ID,
       createdAt: '2026-10-20T08:32:00.000Z',
+      actorType: 'USER',
       actor: null,
       type: 'STATUS_CHANGED',
       data: { from: 'OPEN', to: 'PENDING' },
@@ -228,6 +231,27 @@ describe('ticketDetailResponseSchema', () => {
         timeline: [{ ...event, type: 'SOMETHING_ELSE' }],
       }).success,
     ).toBe(false);
+  });
+
+  it('tells system events apart from events by deleted users', () => {
+    const event = {
+      id: TAG_ID,
+      createdAt: '2026-10-20T08:32:00.000Z',
+      actor: null,
+      type: 'SLA_FIRST_RESPONSE_BREACHED',
+      data: { dueAt: '2026-10-20T08:30:00.000Z' },
+    };
+    const parse = (timeline: object[]) =>
+      ticketDetailResponseSchema.safeParse({
+        ticket,
+        conversation: [],
+        internalNotes: [],
+        timeline,
+      }).success;
+    expect(parse([{ ...event, actorType: 'SYSTEM' }])).toBe(true);
+    expect(parse([{ ...event, actorType: 'USER' }])).toBe(true);
+    expect(parse([event])).toBe(false);
+    expect(parse([{ ...event, actorType: 'ROBOT' }])).toBe(false);
   });
 });
 

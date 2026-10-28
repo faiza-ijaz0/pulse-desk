@@ -3,6 +3,7 @@ import {
   MESSAGE_VISIBILITIES,
   ROLES,
   TICKET_CHANNELS,
+  TICKET_EVENT_ACTOR_TYPES,
   TICKET_EVENT_TYPES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -13,6 +14,7 @@ import {
   MessageVisibility,
   Role,
   TicketChannel,
+  TicketEventActorType,
   TicketEventType,
   TicketPriority,
   TicketStatus,
@@ -29,6 +31,7 @@ describe('shared enums match the Prisma schema', () => {
     ['MessageAuthorType', Object.values(MessageAuthorType), MESSAGE_AUTHOR_TYPES],
     ['MessageVisibility', Object.values(MessageVisibility), MESSAGE_VISIBILITIES],
     ['TicketEventType', Object.values(TicketEventType), TICKET_EVENT_TYPES],
+    ['TicketEventActorType', Object.values(TicketEventActorType), TICKET_EVENT_ACTOR_TYPES],
   ])('%s', (_name, prismaValues, sharedValues) => {
     expect([...sharedValues]).toEqual(prismaValues);
   });

@@ -54,6 +54,11 @@ export const TICKET_EVENT_TYPES = [
 export const ticketEventTypeSchema = z.enum(TICKET_EVENT_TYPES);
 export type TicketEventType = z.infer<typeof ticketEventTypeSchema>;
 
+/** Who caused a ticket event: a person, or PulseDesk itself (SLA sweeps, auto-close). */
+export const TICKET_EVENT_ACTOR_TYPES = ['USER', 'SYSTEM'] as const;
+export const ticketEventActorTypeSchema = z.enum(TICKET_EVENT_ACTOR_TYPES);
+export type TicketEventActorType = z.infer<typeof ticketEventActorTypeSchema>;
+
 // ───────────────────────── List query ─────────────────────────
 
 export const TICKET_LIST_DEFAULT_LIMIT = 25;
@@ -312,6 +317,9 @@ export const ticketSummarySchema = z.object({
   firstRespondedAt: timestamp.nullable(),
   solvedAt: timestamp.nullable(),
   closedAt: timestamp.nullable(),
+  /** When a breach was recorded; once set, the target stays breached (see `evaluateSla`). */
+  firstResponseBreachedAt: timestamp.nullable(),
+  resolutionBreachedAt: timestamp.nullable(),
   createdAt: timestamp,
   updatedAt: timestamp,
 });
@@ -368,7 +376,8 @@ export type TimelineRef = z.infer<typeof timelineRefSchema>;
 const eventFields = {
   id: z.uuid(),
   createdAt: timestamp,
-  /** Who caused the event; null for system events and deleted accounts. */
+  actorType: ticketEventActorTypeSchema,
+  /** The user behind a USER event; null for SYSTEM events and for deleted accounts. */
   actor: z.object({ id: z.uuid(), name: z.string() }).nullable(),
 };
 
