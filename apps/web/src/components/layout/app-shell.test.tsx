@@ -80,8 +80,10 @@ describe('application shell', () => {
     const drawer = await screen.findByRole('dialog');
     await user.click(within(drawer).getByRole('link', { name: /customers/i }));
 
+    // The link closes the drawer on click, but /customers is a lazy route: the location only
+    // changes once its module has loaded, which can be after the drawer is gone.
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(router.state.location.pathname).toBe('/customers');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/customers'));
   });
 
   it('shows an honest placeholder for planned features', async () => {
