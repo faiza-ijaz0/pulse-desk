@@ -207,8 +207,16 @@ async function seedOrganization(
       });
     }
 
+    // No member opened these demo tickets: a USER event without a user would read as a
+    // deleted account, so the seed records them as PulseDesk's (SYSTEM, no actorUserId).
     await tx.ticketEvent.create({
-      data: { organizationId, ticketId: ticket.id, type: 'CREATED', createdAt: openedAt },
+      data: {
+        organizationId,
+        ticketId: ticket.id,
+        actorType: 'SYSTEM',
+        type: 'CREATED',
+        createdAt: openedAt,
+      },
     });
   }
 
