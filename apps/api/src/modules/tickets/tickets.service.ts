@@ -1,5 +1,6 @@
 import {
   encodeTicketCursor,
+  evaluateSla,
   type CreateMessageRequest,
   type CreateTicketInput,
   type UpdateTicketInput,
@@ -29,7 +30,11 @@ import type {
 
 const iso = (date: Date | null) => date?.toISOString() ?? null;
 
-export function toSummary(row: TicketSummaryRow): TicketSummary {
+/**
+ * The response shape of one ticket. `sla` is evaluated at `now` (the caller's injected
+ * clock) with the same function the breach sweep uses, so both agree at any moment.
+ */
+export function toSummary(row: TicketSummaryRow, now: Date): TicketSummary {
   return {
     id: row.id,
     number: row.number,
@@ -48,6 +53,7 @@ export function toSummary(row: TicketSummaryRow): TicketSummary {
     closedAt: iso(row.closedAt),
     firstResponseBreachedAt: iso(row.firstResponseBreachedAt),
     resolutionBreachedAt: iso(row.resolutionBreachedAt),
+    sla: evaluateSla(row, now),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -203,7 +209,7 @@ export function createTicketsService({
     const ticket = await repository.findByNumber(tenant.organizationId, number);
     if (!ticket) throw new NotFoundError('Ticket');
     return {
-      ticket: toSummary(ticket),
+      ticket: toSummary(ticket, clock.now()),
       ...splitMessages(ticket.messages),
       timeline: await timelineOf(tenant, ticket),
     };
@@ -239,7 +245,8 @@ export function createTicketsService({
               number: last.number,
             })
           : null;
-      return { data: page.map(toSummary), nextCursor };
+      const now = clock.now();
+      return { data: page.map((row) => toSummary(row, now)), nextCursor };
     },
 
     get,

@@ -32,7 +32,41 @@ describe('parseEnv', () => {
       SESSION_IDLE_TIMEOUT_MINUTES: 720,
       SESSION_ABSOLUTE_TIMEOUT_DAYS: 14,
       RATE_LIMIT_AUTH_PER_15_MINUTES: 10,
+      SLA_SWEEP_INTERVAL_SECONDS: 60,
+      SLA_SWEEP_BATCH_SIZE: 100,
+      AUTO_CLOSE_SWEEP_INTERVAL_SECONDS: 300,
+      AUTO_CLOSE_BATCH_SIZE: 100,
     });
+  });
+
+  it('bounds the auto-close interval and batch size, with 0 turning the sweep off', () => {
+    const off = parseEnv({ ...base, AUTO_CLOSE_SWEEP_INTERVAL_SECONDS: '0' });
+    expect(off.ok && off.env.AUTO_CLOSE_SWEEP_INTERVAL_SECONDS).toBe(0);
+    for (const [key, value] of [
+      ['AUTO_CLOSE_SWEEP_INTERVAL_SECONDS', '-1'],
+      ['AUTO_CLOSE_SWEEP_INTERVAL_SECONDS', '3601'],
+      ['AUTO_CLOSE_BATCH_SIZE', '0'],
+      ['AUTO_CLOSE_BATCH_SIZE', '1001'],
+    ] as const) {
+      const result = parseEnv({ ...base, [key]: value });
+      expect(result.ok, `${key}=${value}`).toBe(false);
+    }
+  });
+
+  it('accepts 0 to turn the SLA sweep off and bounds its interval and batch size', () => {
+    const off = parseEnv({ ...base, SLA_SWEEP_INTERVAL_SECONDS: '0' });
+    expect(off.ok && off.env.SLA_SWEEP_INTERVAL_SECONDS).toBe(0);
+    for (const [key, value] of [
+      ['SLA_SWEEP_INTERVAL_SECONDS', '-1'],
+      ['SLA_SWEEP_INTERVAL_SECONDS', '3601'],
+      ['SLA_SWEEP_INTERVAL_SECONDS', '1.5'],
+      ['SLA_SWEEP_BATCH_SIZE', '0'],
+      ['SLA_SWEEP_BATCH_SIZE', '1001'],
+    ] as const) {
+      const result = parseEnv({ ...base, [key]: value });
+      expect(result.ok, `${key}=${value}`).toBe(false);
+      if (!result.ok) expect(result.problems.join()).toMatch(new RegExp(`^${key} `));
+    }
   });
 
   it('treats empty values as unset', () => {

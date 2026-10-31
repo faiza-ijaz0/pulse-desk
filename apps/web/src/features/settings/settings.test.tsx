@@ -9,6 +9,8 @@ const ORGANIZATION = {
   name: 'Brightwave Energy',
   slug: 'brightwave',
   createdAt: '2026-10-01T00:00:00.000Z',
+  autoCloseEnabled: false,
+  autoCloseAfterMinutes: 5760,
 };
 
 describe('organization settings', () => {
@@ -186,5 +188,115 @@ describe('tag management', () => {
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Delete vip' })).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe('auto-close settings', () => {
+  const routes = (org: object, onPatch?: (body: unknown) => Response) => ({
+    'GET /api/v1/organization': json(org),
+    'GET /api/v1/tags': json({ data: [] }),
+    ...(onPatch && { 'PATCH /api/v1/organization': (init?: RequestInit) => onPatch(bodyOf(init)) }),
+  });
+
+  it('turns auto-close on with a new delay, warning that solved tickets are included', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    mockApi({
+      routes: routes(ORGANIZATION, (body) => {
+        bodies.push(body);
+        return Response.json({
+          ...ORGANIZATION,
+          autoCloseEnabled: true,
+          autoCloseAfterMinutes: 2880,
+        });
+      }),
+    });
+    renderApp('/settings');
+
+    const form = await screen.findByRole('form', { name: 'Auto-close settings' });
+    const toggle = within(form).getByRole('switch', {
+      name: /close solved tickets automatically/i,
+    });
+    expect(toggle).not.toBeChecked();
+    expect(within(form).getByText('Off')).toBeInTheDocument();
+    const delay = within(form).getByLabelText(/^close after/i);
+    expect(delay).toHaveValue('4');
+    expect(within(form).getByRole('combobox', { name: 'Unit' })).toHaveValue('days');
+    expect(within(form).queryByText('Already-solved tickets are included')).not.toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+    expect(within(form).getByText('On')).toBeInTheDocument();
+    expect(within(form).getByText('Already-solved tickets are included')).toBeInTheDocument();
+    await user.clear(delay);
+    await user.type(delay, '2');
+    await user.click(within(form).getByRole('button', { name: 'Save auto-close' }));
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(bodies).toEqual([{ autoCloseEnabled: true, autoCloseAfterMinutes: 2880 }]);
+  });
+
+  it('validates the delay before saving', async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockApi({ routes: routes(ORGANIZATION) });
+    renderApp('/settings');
+    const form = await screen.findByRole('form', { name: 'Auto-close settings' });
+    const delay = within(form).getByLabelText(/^close after/i);
+    await user.clear(delay);
+    await user.type(delay, '400');
+    await user.click(within(form).getByRole('button', { name: 'Save auto-close' }));
+    expect(delay).toHaveAccessibleDescription(/Must be at most 365 days\./);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+  });
+
+  it('keeps a delay that isn’t whole hours unless the admin enters a new one', async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    const org = { ...ORGANIZATION, autoCloseEnabled: true, autoCloseAfterMinutes: 90 };
+    mockApi({
+      routes: routes(org, (body) => {
+        bodies.push(body);
+        return Response.json({ ...org, autoCloseEnabled: false });
+      }),
+    });
+    renderApp('/settings');
+    const form = await screen.findByRole('form', { name: 'Auto-close settings' });
+    expect(within(form).getByText(/Currently 90 minutes/)).toBeInTheDocument();
+    await user.click(
+      within(form).getByRole('switch', { name: /close solved tickets automatically/i }),
+    );
+    await user.click(within(form).getByRole('button', { name: 'Save auto-close' }));
+    await waitFor(() => expect(bodies).toEqual([{ autoCloseEnabled: false }]));
+  });
+
+  it('shows a server refusal next to the delay', async () => {
+    const user = userEvent.setup();
+    mockApi({
+      routes: routes(ORGANIZATION, () =>
+        problem(400, 'VALIDATION_FAILED', {
+          errors: [{ path: 'body.autoCloseAfterMinutes', message: 'Must be at most 365 days' }],
+        }),
+      ),
+    });
+    renderApp('/settings');
+    const form = await screen.findByRole('form', { name: 'Auto-close settings' });
+    const delay = within(form).getByLabelText(/^close after/i);
+    await user.clear(delay);
+    await user.type(delay, '3');
+    await user.click(within(form).getByRole('button', { name: 'Save auto-close' }));
+    await waitFor(() => expect(delay).toHaveAccessibleDescription(/Must be at most 365 days/));
+  });
+
+  it('shows agents the settings read-only', async () => {
+    mockApi({
+      session: sessionAs('AGENT'),
+      routes: routes({ ...ORGANIZATION, autoCloseEnabled: true }),
+    });
+    renderApp('/settings');
+    const card = await screen.findByRole('region', { name: 'Auto-close' });
+    await waitFor(() => expect(within(card).getByText('4 days')).toBeInTheDocument());
+    expect(within(card).getByText('On')).toBeInTheDocument();
+    expect(within(card).queryByRole('switch')).not.toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Save auto-close' })).not.toBeInTheDocument();
   });
 });

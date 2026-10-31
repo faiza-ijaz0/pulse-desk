@@ -54,17 +54,6 @@ export const SEED_USERS: SeedUser[] = [
   { key: 'riley', name: 'Riley Morgan', email: 'riley@pulsedesk.test' },
 ];
 
-/** SLA targets (minutes) applied to each organization's default policy. */
-export const DEFAULT_SLA_TARGETS: Record<
-  TicketPriority,
-  { firstResponse: number; resolution: number }
-> = {
-  URGENT: { firstResponse: 30, resolution: 4 * 60 },
-  HIGH: { firstResponse: 60, resolution: 8 * 60 },
-  NORMAL: { firstResponse: 4 * 60, resolution: 24 * 60 },
-  LOW: { firstResponse: 8 * 60, resolution: 72 * 60 },
-};
-
 export const SEED_ORGANIZATIONS: SeedOrganization[] = [
   {
     slug: 'brightwave',

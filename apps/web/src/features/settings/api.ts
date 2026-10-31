@@ -17,8 +17,11 @@ export function useOrganization() {
   });
 }
 
-/** The session lists organization names (workspace switcher), so it is refreshed too. */
-export function useRenameOrganization() {
+/**
+ * Updates the organization's settings (name, auto-close). The session lists organization
+ * names (workspace switcher), so it is refreshed too.
+ */
+export function useUpdateOrganization() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateOrganizationRequest) =>

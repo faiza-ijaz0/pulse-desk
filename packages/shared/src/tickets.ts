@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { decodeCursor, encodeCursor } from './cursor.ts';
+import { slaEvaluationSchema } from './sla-status.ts';
 
 // These lists must stay identical to the matching enums in packages/db/prisma/schema.prisma
 // (enforced by packages/db/src/enum-parity.test.ts).
@@ -320,6 +321,8 @@ export const ticketSummarySchema = z.object({
   /** When a breach was recorded; once set, the target stays breached (see `evaluateSla`). */
   firstResponseBreachedAt: timestamp.nullable(),
   resolutionBreachedAt: timestamp.nullable(),
+  /** `evaluateSla` at response time, so the API, web app and breach sweep agree. */
+  sla: slaEvaluationSchema,
   createdAt: timestamp,
   updatedAt: timestamp,
 });

@@ -7,6 +7,15 @@ import { createLogger } from './lib/logger.ts';
 import { systemClock } from './lib/clock.ts';
 import { createShutdown, registerProcessHandlers } from './lib/lifecycle.ts';
 import { loadEnvFile } from './lib/load-env-file.ts';
+import { createAutoCloseRepository } from './modules/auto-close/auto-close.repository.ts';
+import {
+  autoCloseIntervalMs,
+  createAutoCloseScheduler,
+} from './modules/auto-close/auto-close.scheduler.ts';
+import { createAutoCloseService } from './modules/auto-close/auto-close.service.ts';
+import { createSlaSweepRepository } from './modules/sla/sla-sweep.repository.ts';
+import { createSlaSweepScheduler, slaSweepIntervalMs } from './modules/sla/sla-sweep.scheduler.ts';
+import { createSlaSweepService } from './modules/sla/sla-sweep.service.ts';
 
 async function main(): Promise<void> {
   loadEnvFile();
@@ -49,11 +58,49 @@ async function main(): Promise<void> {
   server.keepAliveTimeout = 65_000; // longer than typical load-balancer idle timeouts
   server.headersTimeout = 66_000;
 
+  // SLA breach sweep: in this process, on a timer (single API instance; docs/deployment.md).
+  const sweepIntervalMs = slaSweepIntervalMs(env);
+  const slaSweepService = createSlaSweepService({
+    repository: createSlaSweepRepository(db),
+    clock: systemClock,
+    logger,
+    batchSize: env.SLA_SWEEP_BATCH_SIZE,
+  });
+  const slaSweep =
+    sweepIntervalMs === null
+      ? undefined
+      : createSlaSweepScheduler({
+          intervalMs: sweepIntervalMs,
+          logger,
+          sweep: (options) => slaSweepService.sweep(options),
+        });
+
+  // Auto-close sweep: the same pattern, its own interval (single API instance).
+  const autoCloseMs = autoCloseIntervalMs(env);
+  const autoCloseService = createAutoCloseService({
+    repository: createAutoCloseRepository(db),
+    clock: systemClock,
+    logger,
+    batchSize: env.AUTO_CLOSE_BATCH_SIZE,
+  });
+  const autoClose =
+    autoCloseMs === null
+      ? undefined
+      : createAutoCloseScheduler({
+          intervalMs: autoCloseMs,
+          logger,
+          sweep: (options) => autoCloseService.sweep(options),
+        });
+
   const shutdown = createShutdown({
     server,
     logger,
     timeoutMs: env.SHUTDOWN_TIMEOUT_MS,
-    onClose: () => db.$disconnect(),
+    // Stop scheduling and let a running sweep finish its current ticket before the pool closes.
+    onClose: async () => {
+      await Promise.all([slaSweep?.stop(), autoClose?.stop()]);
+      await db.$disconnect();
+    },
   });
   registerProcessHandlers(shutdown, logger);
 
@@ -66,6 +113,25 @@ async function main(): Promise<void> {
       { host: env.API_HOST, port: env.API_PORT, env: env.NODE_ENV },
       'PulseDesk API listening',
     );
+    // Only once the server is up, so a failed start never leaves a sweep running.
+    if (slaSweep) {
+      slaSweep.start();
+      logger.info(
+        { intervalSeconds: env.SLA_SWEEP_INTERVAL_SECONDS },
+        'SLA breach sweep scheduled',
+      );
+    } else {
+      logger.info({ nodeEnv: env.NODE_ENV }, 'SLA breach sweep disabled');
+    }
+    if (autoClose) {
+      autoClose.start();
+      logger.info(
+        { intervalSeconds: env.AUTO_CLOSE_SWEEP_INTERVAL_SECONDS },
+        'Auto-close sweep scheduled',
+      );
+    } else {
+      logger.info({ nodeEnv: env.NODE_ENV }, 'Auto-close sweep disabled');
+    }
   });
 }
 

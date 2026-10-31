@@ -184,6 +184,7 @@ describe('ticketDetailResponseSchema', () => {
     closedAt: null,
     firstResponseBreachedAt: null,
     resolutionBreachedAt: null,
+    sla: { status: 'none', firstResponse: 'none', resolution: 'none' },
     createdAt: '2026-10-20T08:30:00.000Z',
     updatedAt: '2026-10-20T08:30:00.000Z',
   };
@@ -231,6 +232,31 @@ describe('ticketDetailResponseSchema', () => {
         timeline: [{ ...event, type: 'SOMETHING_ELSE' }],
       }).success,
     ).toBe(false);
+  });
+
+  it('requires the computed SLA state on every ticket, with known states only', () => {
+    const parse = (overrides: object) =>
+      ticketDetailResponseSchema.safeParse({
+        ticket: { ...ticket, ...overrides },
+        conversation: [],
+        internalNotes: [],
+        timeline: [],
+      }).success;
+    expect(
+      parse({ sla: { status: 'at_risk', firstResponse: 'at_risk', resolution: 'on_track' } }),
+    ).toBe(true);
+    expect(
+      parse({
+        sla: { status: 'resolution_breached', firstResponse: 'met', resolution: 'breached' },
+      }),
+    ).toBe(true);
+    expect(parse({ sla: undefined })).toBe(false);
+    expect(parse({ sla: { status: 'late', firstResponse: 'none', resolution: 'none' } })).toBe(
+      false,
+    );
+    expect(parse({ sla: { status: 'none', firstResponse: 'overdue', resolution: 'none' } })).toBe(
+      false,
+    );
   });
 
   it('tells system events apart from events by deleted users', () => {

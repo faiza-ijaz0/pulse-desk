@@ -19,6 +19,14 @@ export const routes: RouteObject[] = [
     lazy: async () => ({ Component: (await import('@/features/auth/signup-page')).SignupPage }),
   },
   {
+    // Public: an invitation link works signed in or out (the token is in the fragment).
+    path: '/invite',
+    errorElement: <RouteErrorPage />,
+    lazy: async () => ({
+      Component: (await import('@/features/invitations/invite-page')).InvitePage,
+    }),
+  },
+  {
     path: '/',
     element: (
       <RequireAuth>
@@ -61,6 +69,12 @@ export const routes: RouteObject[] = [
       {
         path: 'team',
         lazy: async () => ({ Component: (await import('@/features/team/team-page')).TeamPage }),
+      },
+      {
+        path: 'sla',
+        lazy: async () => ({
+          Component: (await import('@/features/sla/sla-policy-page')).SlaPolicyPage,
+        }),
       },
       {
         path: 'settings',

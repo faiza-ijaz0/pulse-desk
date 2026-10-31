@@ -1,11 +1,7 @@
+import { DEFAULT_SLA_POLICY_NAME, DEFAULT_SLA_TARGETS } from '@pulsedesk/shared';
 import type { Database, TransactionClient } from '../client.ts';
 import type { TicketPriority } from '../generated/prisma/enums.ts';
-import {
-  DEFAULT_SLA_TARGETS,
-  SEED_ORGANIZATIONS,
-  SEED_USERS,
-  type SeedOrganization,
-} from './data.ts';
+import { SEED_ORGANIZATIONS, SEED_USERS, type SeedOrganization } from './data.ts';
 
 const MINUTE = 60_000;
 
@@ -117,16 +113,16 @@ async function seedOrganization(
     customerIds.set(customer.email, created.id);
   }
 
+  // The same default policy every organization gets at sign-up (@pulsedesk/shared).
   const policy = await tx.slaPolicy.create({
-    data: { organizationId, name: 'Standard', isDefault: true },
+    data: { organizationId, name: DEFAULT_SLA_POLICY_NAME, isDefault: true },
   });
   await tx.slaTarget.createMany({
     data: (Object.keys(DEFAULT_SLA_TARGETS) as TicketPriority[]).map((priority) => ({
       organizationId,
       slaPolicyId: policy.id,
       priority,
-      firstResponseMinutes: DEFAULT_SLA_TARGETS[priority].firstResponse,
-      resolutionMinutes: DEFAULT_SLA_TARGETS[priority].resolution,
+      ...DEFAULT_SLA_TARGETS[priority],
     })),
   });
 
@@ -153,8 +149,8 @@ async function seedOrganization(
         assigneeUserId,
         teamId: t.team ? requireId(teamIds, t.team, 'team') : null,
         slaPolicyId: policy.id,
-        firstResponseDueAt: new Date(openedAt.getTime() + target.firstResponse * MINUTE),
-        resolutionDueAt: new Date(openedAt.getTime() + target.resolution * MINUTE),
+        firstResponseDueAt: new Date(openedAt.getTime() + target.firstResponseMinutes * MINUTE),
+        resolutionDueAt: new Date(openedAt.getTime() + target.resolutionMinutes * MINUTE),
         firstRespondedAt,
         solvedAt,
         createdAt: openedAt,

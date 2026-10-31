@@ -38,7 +38,10 @@ let other: { owner: RegisteredOwner; agentId: string; teamId: string; tagId: str
 
 const MINUTE = 60_000;
 
-/** An organization with an agent, a team, two tags and a default SLA policy. */
+/**
+ * An organization with an agent, a team and two tags. Its SLA policy is the default one
+ * every organization gets at sign-up (DEFAULT_SLA_TARGETS in @pulsedesk/shared).
+ */
 async function createDesk(label: string): Promise<Desk> {
   const owner = await registerOwner(app, label);
   const organizationId = owner.organizationId;
@@ -48,41 +51,6 @@ async function createDesk(label: string): Promise<Desk> {
     data: { organizationId, name: 'billing', color: 'violet' },
   });
   const vip = await db.tag.create({ data: { organizationId, name: 'vip', color: 'amber' } });
-  const policy = await db.slaPolicy.create({
-    data: { organizationId, name: 'Standard', isDefault: true },
-  });
-  await db.slaTarget.createMany({
-    data: [
-      {
-        organizationId,
-        slaPolicyId: policy.id,
-        priority: 'LOW',
-        firstResponseMinutes: 480,
-        resolutionMinutes: 4320,
-      },
-      {
-        organizationId,
-        slaPolicyId: policy.id,
-        priority: 'NORMAL',
-        firstResponseMinutes: 240,
-        resolutionMinutes: 1440,
-      },
-      {
-        organizationId,
-        slaPolicyId: policy.id,
-        priority: 'HIGH',
-        firstResponseMinutes: 60,
-        resolutionMinutes: 480,
-      },
-      {
-        organizationId,
-        slaPolicyId: policy.id,
-        priority: 'URGENT',
-        firstResponseMinutes: 15,
-        resolutionMinutes: 240,
-      },
-    ],
-  });
   return {
     owner,
     agent: { ...agent, client: await signIn(app, agent.email) },
@@ -276,9 +244,16 @@ describe('POST /api/v1/tickets', () => {
     expect(timeline.map((e) => e.type)).toEqual(['CREATED']);
   });
 
-  it('works without an SLA policy: due dates stay empty', async () => {
-    const { ticket } = await create(other.owner.client);
-    expect(ticket).toMatchObject({ firstResponseDueAt: null, resolutionDueAt: null });
+  it('works without an SLA policy: due dates stay empty and the ticket has no SLA', async () => {
+    // Organizations get a default policy at sign-up; one that removed it has none.
+    const owner = await registerOwner(app, 'no-sla');
+    await db.slaPolicy.deleteMany({ where: { organizationId: owner.organizationId } });
+    const { ticket } = await create(owner.client);
+    expect(ticket).toMatchObject({
+      firstResponseDueAt: null,
+      resolutionDueAt: null,
+      sla: { status: 'none', firstResponse: 'none', resolution: 'none' },
+    });
   });
 
   it('allocates unique, gap-free numbers under concurrent creation', async () => {
@@ -522,7 +497,7 @@ describe('PATCH /api/v1/tickets/:number', () => {
     const { ticket } = await create(desk.owner.client, newTicket({ priority: 'LOW' }));
     const createdAt = Date.parse(ticket.createdAt);
     const urgent = await patchOk(desk.owner.client, ticket.number, { priority: 'URGENT' });
-    expect(Date.parse(urgent.ticket.firstResponseDueAt!)).toBe(createdAt + 15 * MINUTE);
+    expect(Date.parse(urgent.ticket.firstResponseDueAt!)).toBe(createdAt + 30 * MINUTE);
     expect(Date.parse(urgent.ticket.resolutionDueAt!)).toBe(createdAt + 240 * MINUTE);
 
     // Once the first response is met, its due date is history and stays put.
@@ -530,8 +505,38 @@ describe('PATCH /api/v1/tickets/:number', () => {
       201,
     );
     const low = await patchOk(desk.owner.client, ticket.number, { priority: 'LOW' });
-    expect(Date.parse(low.ticket.firstResponseDueAt!)).toBe(createdAt + 15 * MINUTE);
+    expect(Date.parse(low.ticket.firstResponseDueAt!)).toBe(createdAt + 30 * MINUTE);
     expect(Date.parse(low.ticket.resolutionDueAt!)).toBe(createdAt + 4320 * MINUTE);
+    expect(low.ticket.sla).toEqual({
+      status: 'on_track',
+      firstResponse: 'met',
+      resolution: 'on_track',
+    });
+  });
+
+  it('keeps a due date that has already passed when the priority changes', async () => {
+    // Pretend the ticket was opened two hours ago: its urgent first response (30 min) has
+    // passed, and lowering the priority must not move it out and hide the breach.
+    const { ticket } = await create(desk.owner.client, newTicket({ priority: 'URGENT' }));
+    const openedAt = new Date(Date.now() - 120 * MINUTE);
+    const passedDue = new Date(openedAt.getTime() + 30 * MINUTE);
+    await db.ticket.update({
+      where: { organizationId_id: { organizationId: desk.owner.organizationId, id: ticket.id } },
+      data: {
+        createdAt: openedAt,
+        firstResponseDueAt: passedDue,
+        resolutionDueAt: new Date(openedAt.getTime() + 240 * MINUTE),
+      },
+    });
+
+    const low = await patchOk(desk.owner.client, ticket.number, { priority: 'LOW' });
+    expect(low.ticket.firstResponseDueAt).toBe(passedDue.toISOString());
+    // The resolution target (4 h) hasn't passed yet, so it follows the new priority (72 h).
+    expect(Date.parse(low.ticket.resolutionDueAt!)).toBe(openedAt.getTime() + 4320 * MINUTE);
+    expect(low.ticket.sla).toMatchObject({
+      status: 'first_response_breached',
+      firstResponse: 'breached',
+    });
   });
 
   describe('references from another organization', () => {

@@ -27,9 +27,10 @@ import {
   useCreateTag,
   useDeleteTag,
   useOrganization,
-  useRenameOrganization,
+  useUpdateOrganization,
   useUpdateTag,
 } from './api';
+import { AutoCloseCard } from './auto-close-card';
 
 /** A field-level message for a refused name: validation errors and conflicts included. */
 function fieldMessage(error: unknown): string {
@@ -43,7 +44,7 @@ function fieldMessage(error: unknown): string {
 // ───────────────────────── Organization profile ─────────────────────────
 
 function ProfileForm({ organization }: { organization: Organization }) {
-  const rename = useRenameOrganization();
+  const rename = useUpdateOrganization();
   const [name, setName] = useState(organization.name);
   const [error, setError] = useState<string>();
 
@@ -416,14 +417,20 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Your organization’s profile and ticket tags." />
+      <PageHeader
+        title="Settings"
+        description="Your organization’s profile, auto-close and ticket tags."
+      />
       {!(canEditProfile && canManageTags) && (
         <Alert tone="info" title="View only" className="mb-4">
           Only admins and owners can change these settings.
         </Alert>
       )}
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <ProfileCard canEdit={canEditProfile} />
+        <div className="grid items-start gap-5">
+          <ProfileCard canEdit={canEditProfile} />
+          <AutoCloseCard canEdit={canEditProfile} />
+        </div>
         <TagsCard canManage={canManageTags} />
       </div>
     </>

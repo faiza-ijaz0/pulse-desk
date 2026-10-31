@@ -44,6 +44,15 @@ export function describeAuthError(error: unknown): string {
       // and not worth a support reference.
       case 'SERVICE_UNAVAILABLE':
         return 'PulseDesk is temporarily unavailable. Please try again in a few minutes.';
+      // These explain themselves: the API's detail says what happened and what to do.
+      case 'LAST_OWNER':
+      case 'ALREADY_MEMBER':
+      case 'INVITATION_INVALID':
+      case 'INVITATION_EMAIL_MISMATCH':
+      case 'EMAIL_TAKEN':
+      case 'FORBIDDEN':
+      case 'CONFLICT':
+        return error.message;
       default:
         return `Something went wrong (reference ${error.requestId}). Please try again.`;
     }

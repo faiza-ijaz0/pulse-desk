@@ -65,5 +65,11 @@ export function authRateLimits(limitPer15Minutes: number) {
       }),
     ],
     register: [rateLimit({ ...common, identifier: 'register-ip' })],
+    // Invitation links (preview, accept, sign-up): only failures count, so an invitee is never
+    // locked out while anyone probing tokens is slowed down. Tokens are 256-bit; this is
+    // defence in depth, not what keeps them secret.
+    invitation: [
+      rateLimit({ ...common, identifier: 'invitation-ip', skipSuccessfulRequests: true }),
+    ],
   };
 }

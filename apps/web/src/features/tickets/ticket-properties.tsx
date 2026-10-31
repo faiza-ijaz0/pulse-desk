@@ -1,6 +1,7 @@
 import {
   TICKET_PRIORITIES,
   allowedStatusTransitions,
+  type SlaTargetState,
   type TicketSummary,
   type UpdateTicketRequest,
 } from '@pulsedesk/shared';
@@ -28,6 +29,8 @@ import {
 import {
   PRIORITY_LABELS,
   STATUS_LABELS,
+  SlaBadge,
+  SlaTargetBadge,
   TicketPriorityLabel,
   TicketStatusBadge,
 } from './ticket-badges';
@@ -62,6 +65,16 @@ function Property({
 function Timestamp({ iso }: { iso: string | null }) {
   if (!iso) return <span className="text-muted-foreground">—</span>;
   return <time dateTime={iso}>{formatDateTime(iso)}</time>;
+}
+
+/** A due date with that target's SLA state beside it. */
+function DueDate({ iso, state }: { iso: string | null; state: SlaTargetState }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <Timestamp iso={iso} />
+      <SlaTargetBadge state={state} />
+    </span>
+  );
 }
 
 type Option = { value: string; label: string };
@@ -345,14 +358,23 @@ export function TicketProperties({ ticket }: { ticket: TicketSummary }) {
           </Property>
           <Property label="Channel">{() => CHANNEL_LABELS[ticket.channel]}</Property>
           <Property label="Created">{() => <Timestamp iso={ticket.createdAt} />}</Property>
+          <Property label="SLA">
+            {() =>
+              ticket.sla.status === 'none' ? (
+                <span className="text-muted-foreground">No SLA</span>
+              ) : (
+                <SlaBadge status={ticket.sla.status} />
+              )
+            }
+          </Property>
           <Property label="First reply due">
-            {() => <Timestamp iso={ticket.firstResponseDueAt} />}
+            {() => <DueDate iso={ticket.firstResponseDueAt} state={ticket.sla.firstResponse} />}
           </Property>
           <Property label="First reply">
             {() => <Timestamp iso={ticket.firstRespondedAt} />}
           </Property>
           <Property label="Resolution due">
-            {() => <Timestamp iso={ticket.resolutionDueAt} />}
+            {() => <DueDate iso={ticket.resolutionDueAt} state={ticket.sla.resolution} />}
           </Property>
           {ticket.solvedAt && (
             <Property label="Solved">{() => <Timestamp iso={ticket.solvedAt} />}</Property>

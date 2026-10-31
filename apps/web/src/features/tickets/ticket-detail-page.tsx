@@ -14,7 +14,12 @@ import { describeAuthError } from '@/features/auth/form-helpers';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useTicketDetail } from './api';
-import { TicketPriorityLabel, TicketStatusBadge } from './ticket-badges';
+import {
+  PRIORITY_STRIPES,
+  SlaBadge,
+  TicketPriorityLabel,
+  TicketStatusBadge,
+} from './ticket-badges';
 import { TicketComposer } from './ticket-composer';
 import { RelativeTime } from './ticket-parts';
 import { TicketProperties } from './ticket-properties';
@@ -44,30 +49,35 @@ function authorName(author: MessageAuthor): string {
 
 type ThreadItem = ConversationMessage | InternalNote;
 
+// Three kinds of message, told apart by more than color: customers on the plain surface,
+// your team's replies with a violet tint, internal notes amber, dashed and labelled.
+function messageStyle(message: ThreadItem): string {
+  if (message.visibility === 'INTERNAL') {
+    return 'border-dashed border-warning/45 bg-warning-subtle/70';
+  }
+  if (message.author.type === 'CUSTOMER') {
+    return 'border-border bg-surface shadow-[var(--highlight),var(--elevation-xs)]';
+  }
+  return 'border-accent/20 bg-accent-subtle/45 sm:ml-8';
+}
+
 function ThreadMessage({ message }: { message: ThreadItem }) {
   const internal = message.visibility === 'INTERNAL';
   const name = authorName(message.author);
   return (
-    <li
-      className={cn(
-        'rounded-lg border px-4 py-3',
-        internal
-          ? 'border-warning/35 bg-warning-subtle/60'
-          : message.author.type === 'CUSTOMER'
-            ? 'border-border bg-surface'
-            : 'border-border bg-surface-sunken/50',
-      )}
-    >
+    <li className={cn('rounded-xl border px-4 py-3.5', messageStyle(message))}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {message.author.type === 'SYSTEM' ? null : (
           <Avatar name={name} size="sm" className="ring-0" />
         )}
         <span className="text-sm font-medium">{name}</span>
         {message.author.type === 'CUSTOMER' && (
-          <span className="text-xs text-muted-foreground">Customer</span>
+          <span className="rounded-full bg-info-subtle px-1.5 text-2xs font-medium text-info-foreground">
+            Customer
+          </span>
         )}
         {internal && (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-warning-subtle px-1.5 text-xs font-medium text-warning-foreground ring-1 ring-warning/25 ring-inset">
+          <span className="inline-flex items-center gap-1 rounded-full bg-warning-subtle px-2 text-xs font-medium text-warning-foreground ring-1 ring-warning/30 ring-inset">
             <Lock className="size-3" aria-hidden="true" />
             Internal note
           </span>
@@ -150,12 +160,24 @@ export function TicketDetailPage() {
   return (
     <>
       <BackLink />
-      <div className="mb-6 min-w-0">
-        <p className="font-mono text-xs text-muted-foreground">Ticket #{ticket.number}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight break-words">{ticket.subject}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+      <div className="relative mb-6 min-w-0 overflow-hidden rounded-2xl border border-border bg-surface px-5 py-5 shadow-[var(--highlight),var(--elevation-sm)] sm:px-6">
+        {/* Priority edge (decorative: the priority is written out below). */}
+        <span
+          aria-hidden="true"
+          className={cn('absolute inset-y-0 left-0 w-1', PRIORITY_STRIPES[ticket.priority])}
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-16 -right-16 size-56 rounded-full bg-accent/10 blur-3xl"
+        />
+        <p className="relative font-mono text-xs text-muted-foreground">Ticket #{ticket.number}</p>
+        <h1 className="relative mt-1 text-2xl font-semibold tracking-tight break-words">
+          {ticket.subject}
+        </h1>
+        <div className="relative mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
           <TicketStatusBadge status={ticket.status} />
           <TicketPriorityLabel priority={ticket.priority} />
+          <SlaBadge status={ticket.sla.status} />
           <span>
             Opened <RelativeTime iso={ticket.createdAt} /> by{' '}
             {ticket.customer.name ?? ticket.customer.email}

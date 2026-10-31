@@ -1,7 +1,15 @@
-import { authSessionSchema, problemDetailsSchema } from '@pulsedesk/shared';
-import type { Database } from '@pulsedesk/db';
+import { randomUUID } from 'node:crypto';
+import {
+  DEFAULT_SLA_POLICY_NAME,
+  DEFAULT_SLA_TARGETS,
+  authSessionSchema,
+  problemDetailsSchema,
+  ticketDetailResponseSchema,
+} from '@pulsedesk/shared';
+import { prismaErrorCode, type Database } from '@pulsedesk/db';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createAuthRepository } from '../../src/modules/auth/auth.repository.ts';
 import { hashSessionToken } from '../../src/modules/auth/session-token.ts';
 import { TEST_ENV_DEFAULTS, WEB_ORIGIN } from '../helpers.ts';
 import {
@@ -71,6 +79,80 @@ describe('POST /api/v1/auth/register', () => {
     // The new session works immediately.
     const me = await client.get('/api/v1/auth/session').expect(200);
     expect(authSessionSchema.parse(me.body).user.id).toBe(session.user.id);
+  });
+
+  it('gives the new organization the default SLA policy, so its tickets get due dates', async () => {
+    const owner = await registerOwner(app, 'sla-default');
+    const organizationId = owner.organizationId;
+    const policies = await db.slaPolicy.findMany({
+      where: { organizationId },
+      include: { targets: { orderBy: { priority: 'asc' } } },
+    });
+    expect(policies).toHaveLength(1);
+    expect(policies[0]).toMatchObject({ name: DEFAULT_SLA_POLICY_NAME, isDefault: true });
+    expect(
+      Object.fromEntries(
+        policies[0]!.targets.map((t) => [
+          t.priority,
+          { firstResponseMinutes: t.firstResponseMinutes, resolutionMinutes: t.resolutionMinutes },
+        ]),
+      ),
+    ).toEqual(DEFAULT_SLA_TARGETS);
+    expect(policies[0]!.targets.every((t) => t.organizationId === organizationId)).toBe(true);
+
+    const res = await owner.client
+      .post('/api/v1/tickets', {
+        subject: 'First ticket',
+        priority: 'HIGH',
+        customer: { email: 'first@example.com' },
+        message: 'Hello',
+      })
+      .expect(201);
+    const { ticket } = ticketDetailResponseSchema.parse(res.body);
+    const createdAt = Date.parse(ticket.createdAt);
+    const { firstResponseMinutes, resolutionMinutes } = DEFAULT_SLA_TARGETS.HIGH;
+    expect(Date.parse(ticket.firstResponseDueAt!)).toBe(createdAt + firstResponseMinutes * 60_000);
+    expect(Date.parse(ticket.resolutionDueAt!)).toBe(createdAt + resolutionMinutes * 60_000);
+    expect(ticket.sla).toEqual({
+      status: 'on_track',
+      firstResponse: 'on_track',
+      resolution: 'on_track',
+    });
+  });
+
+  it('rolls back the whole registration, SLA policy included, when a later step fails', async () => {
+    // The session is the transaction's last write; a token hash that already exists makes it
+    // fail after the organization, membership and policy were written.
+    const existing = await registerOwner(app, 'rollback-existing');
+    const taken = await db.session.findFirstOrThrow({ where: { userId: existing.userId } });
+    const slug = `rollback-${randomUUID()}`;
+    const email = uniqueEmail('rollback');
+    // Integration files run one at a time, so nothing else writes policies meanwhile.
+    const countPolicies = () =>
+      db.$queryRaw<{ policies: number; targets: number }[]>`
+        SELECT (SELECT count(*)::int FROM "SlaPolicy") AS policies,
+               (SELECT count(*)::int FROM "SlaTarget") AS targets`;
+    const before = await countPolicies();
+
+    const error: unknown = await createAuthRepository(db)
+      .createAccount({
+        user: { name: 'Rolled Back', email, passwordHash: 'not-a-real-hash' },
+        organization: { name: 'Rolled Back Co', slug },
+        session: {
+          tokenHash: taken.tokenHash,
+          expiresAt: new Date(Date.now() + 60_000),
+          ipAddress: undefined,
+          userAgent: undefined,
+        },
+        audit: { ipAddress: undefined, requestId: 'rollback-test' },
+      })
+      .catch((e: unknown) => e);
+
+    expect(prismaErrorCode(error)).toBe('P2002');
+    expect(await db.organization.findUnique({ where: { slug } })).toBeNull();
+    expect(await db.user.findUnique({ where: { email } })).toBeNull();
+    // The policy and its four targets were written before the failure; none remain.
+    expect(await countPolicies()).toEqual(before);
   });
 
   it('stores an Argon2id hash, never the plaintext password', async () => {

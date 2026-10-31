@@ -1,4 +1,4 @@
-import type { Member, Role } from '@pulsedesk/shared';
+import { hasPermission, type Member, type Role } from '@pulsedesk/shared';
 import type { RequestMeta, TenantContext } from '../../http/auth-context.ts';
 import { systemClock, type Clock } from '../../lib/clock.ts';
 import { LastOwnerError, NoActiveOrganizationError, NotFoundError } from '../../http/errors.ts';
@@ -68,12 +68,24 @@ export function createMembersService({
           }
 
           const updated = await members.updateRole(targetUserId, role);
+          const audit = {
+            actorUserId: tenant.userId,
+            ipAddress: meta.ipAddress,
+            requestId: tenant.requestId,
+          };
           await members.audit(
             'membership.role_changed',
             targetUserId,
             { from: target.role, to: role },
-            { actorUserId: tenant.userId, ipAddress: meta.ipAddress, requestId: tenant.requestId },
+            audit,
           );
+          // Losing the right to invite ends the invitations they sent (Owner → Admin keeps it).
+          if (
+            hasPermission(target.role, 'member:invite') &&
+            !hasPermission(role, 'member:invite')
+          ) {
+            await members.revokeInvitationsBy(targetUserId, 'inviter_demoted', clock.now(), audit);
+          }
           return toDto(updated);
         },
       );
@@ -92,13 +104,15 @@ export function createMembersService({
             throw new LastOwnerError();
           }
 
-          await members.remove(targetUserId, tenant.userId, clock.now());
-          await members.audit(
-            'membership.removed',
-            targetUserId,
-            { role: target.role },
-            { actorUserId: tenant.userId, ipAddress: meta.ipAddress, requestId: tenant.requestId },
-          );
+          const now = clock.now();
+          const audit = {
+            actorUserId: tenant.userId,
+            ipAddress: meta.ipAddress,
+            requestId: tenant.requestId,
+          };
+          await members.remove(targetUserId, tenant.userId, now);
+          await members.audit('membership.removed', targetUserId, { role: target.role }, audit);
+          await members.revokeInvitationsBy(targetUserId, 'inviter_removed', now, audit);
         },
       );
     },

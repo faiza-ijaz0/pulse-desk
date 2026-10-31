@@ -21,10 +21,15 @@ describe('agents & teams page', () => {
     ).toBeInTheDocument();
     const billing = await screen.findByRole('region', { name: 'Billing' });
     expect(within(billing).getByText('Jonah Reyes')).toBeInTheDocument();
-    const members = screen.getByRole('list', { name: 'Organization members' });
-    expect(within(members).getAllByRole('listitem')).toHaveLength(2);
-    expect(members).toHaveTextContent('Owner');
-    expect(members).toHaveTextContent('Agent');
+    const members = await screen.findByRole('table', { name: 'Organization members' });
+    // A header row and one row per member.
+    expect(within(members).getAllByRole('row')).toHaveLength(3);
+    expect(within(members).getByRole('combobox', { name: 'Role for Jonah Reyes' })).toHaveValue(
+      'AGENT',
+    );
+    expect(within(members).getByRole('combobox', { name: 'Role for Maya Chen' })).toHaveValue(
+      'OWNER',
+    );
   });
 
   it('creates a team and shows validation and conflict errors', async () => {

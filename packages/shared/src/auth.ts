@@ -22,7 +22,7 @@ export const passwordSchema = z
   .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters`)
   .max(PASSWORD_MAX_LENGTH, `Use at most ${PASSWORD_MAX_LENGTH} characters`);
 
-const personNameSchema = z
+export const personNameSchema = z
   .string({ error: 'Enter your name' })
   .trim()
   .min(1, 'Enter your name')

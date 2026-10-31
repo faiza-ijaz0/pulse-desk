@@ -73,6 +73,46 @@ function scopedTo(client: TransactionClient, organizationId: string) {
       await client.membership.delete({ where: key(userId) });
     },
 
+    /**
+     * Revokes the open invitations this member created, each with an `invitation.revoked`
+     * audit entry. The inviter saw each link once and could still use it after losing the
+     * right to invite (docs/architecture/auth-and-sessions.md §11). Runs after the
+     * organization lock (withMemberLock), the lock order invitation writes follow too; an
+     * acceptance already holding an invitation's row finishes first and is kept.
+     */
+    async revokeInvitationsBy(
+      inviterUserId: string,
+      reason: 'inviter_removed' | 'inviter_demoted',
+      at: Date,
+      entry: MemberAudit,
+    ): Promise<number> {
+      const revoked = await client.invitation.updateManyAndReturn({
+        where: {
+          organizationId,
+          invitedByUserId: inviterUserId,
+          acceptedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: at },
+        select: { id: true, email: true, role: true },
+      });
+      if (revoked.length > 0) {
+        await client.auditLog.createMany({
+          data: revoked.map((invitation) => ({
+            organizationId,
+            actorUserId: entry.actorUserId,
+            action: 'invitation.revoked',
+            targetType: 'Invitation',
+            targetId: invitation.id,
+            metadata: { email: invitation.email, role: invitation.role, reason },
+            ipAddress: entry.ipAddress ?? null,
+            requestId: entry.requestId,
+          })),
+        });
+      }
+      return revoked.length;
+    },
+
     async audit(
       action: string,
       targetUserId: string,

@@ -14,6 +14,10 @@ import { createCustomersController } from './modules/customers/customers.control
 import { createCustomersRepository } from './modules/customers/customers.repository.ts';
 import { customersRoutes } from './modules/customers/customers.routes.ts';
 import { createCustomersService } from './modules/customers/customers.service.ts';
+import { createInvitationsController } from './modules/invitations/invitations.controller.ts';
+import { createInvitationsRepository } from './modules/invitations/invitations.repository.ts';
+import { invitationsRoutes } from './modules/invitations/invitations.routes.ts';
+import { createInvitationsService } from './modules/invitations/invitations.service.ts';
 import { createMembersController } from './modules/members/members.controller.ts';
 import { createMembersRepository } from './modules/members/members.repository.ts';
 import { membersRoutes } from './modules/members/members.routes.ts';
@@ -25,6 +29,10 @@ import { createOrganizationsService } from './modules/organizations/organization
 import { createSearchController } from './modules/search/search.controller.ts';
 import { searchRoutes } from './modules/search/search.routes.ts';
 import { createSearchService } from './modules/search/search.service.ts';
+import { createSlaPoliciesController } from './modules/sla-policies/sla-policies.controller.ts';
+import { createSlaPoliciesRepository } from './modules/sla-policies/sla-policies.repository.ts';
+import { slaPoliciesRoutes } from './modules/sla-policies/sla-policies.routes.ts';
+import { createSlaPoliciesService } from './modules/sla-policies/sla-policies.service.ts';
 import { createTagsController } from './modules/tags/tags.controller.ts';
 import { createTagsRepository } from './modules/tags/tags.repository.ts';
 import { tagsRoutes } from './modules/tags/tags.routes.ts';
@@ -64,18 +72,41 @@ export function createApiRouter({ env, db, logger, clock }: ApiRouterDependencie
   });
   const tenant = requireTenant(authService);
 
+  // One set of limiters, so an invitation sign-up and a normal sign-up share their budget.
+  const limits = authRateLimits(env.RATE_LIMIT_AUTH_PER_15_MINUTES);
+
   const router = Router();
   router.use(authenticate(authService, cookie));
+  router.use(authRoutes(createAuthController({ service: authService, cookie, clock }), limits));
   router.use(
-    authRoutes(
-      createAuthController({ service: authService, cookie, clock }),
-      authRateLimits(env.RATE_LIMIT_AUTH_PER_15_MINUTES),
+    invitationsRoutes(
+      createInvitationsController({
+        service: createInvitationsService({
+          repository: createInvitationsRepository(db),
+          auth: authService,
+          clock,
+          logger,
+          sessionSecret: env.SESSION_SECRET,
+        }),
+        cookie,
+        clock,
+      }),
+      tenant,
+      limits,
     ),
   );
   router.use(
     organizationsRoutes(
       createOrganizationsController(
         createOrganizationsService({ repository: createOrganizationsRepository(db) }),
+      ),
+      tenant,
+    ),
+  );
+  router.use(
+    slaPoliciesRoutes(
+      createSlaPoliciesController(
+        createSlaPoliciesService({ repository: createSlaPoliciesRepository(db) }),
       ),
       tenant,
     ),
@@ -119,6 +150,7 @@ export function createApiRouter({ env, db, logger, clock }: ApiRouterDependencie
           tickets: ticketsRepository,
           customers: customersRepository,
           customerDtos: customersService,
+          clock,
         }),
       ),
       tenant,

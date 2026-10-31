@@ -3,7 +3,14 @@ import type { RequestMeta, TenantContext } from '../../http/auth-context.ts';
 import { NotFoundError } from '../../http/errors.ts';
 import type { OrganizationsRepository } from './organizations.repository.ts';
 
-type OrganizationRow = { id: string; name: string; slug: string; createdAt: Date };
+type OrganizationRow = {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date;
+  autoCloseEnabled: boolean;
+  autoCloseAfterMinutes: number;
+};
 
 function toDto(row: OrganizationRow): Organization {
   return { ...row, createdAt: row.createdAt.toISOString() };
@@ -27,7 +34,7 @@ export function createOrganizationsService({
       input: UpdateOrganizationRequest,
       meta: RequestMeta,
     ): Promise<Organization> {
-      const organization = await repository.rename(tenant.organizationId, input.name, {
+      const organization = await repository.update(tenant.organizationId, input, {
         actorUserId: tenant.userId,
         ipAddress: meta.ipAddress,
         requestId: tenant.requestId,

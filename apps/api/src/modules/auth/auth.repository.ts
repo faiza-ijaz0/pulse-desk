@@ -1,4 +1,5 @@
-import { Prisma, type Database, type Role } from '@pulsedesk/db';
+import { Prisma, type Database, type Role, type TicketPriority } from '@pulsedesk/db';
+import { DEFAULT_SLA_POLICY_NAME, DEFAULT_SLA_TARGETS } from '@pulsedesk/shared';
 
 export type NewSession = {
   tokenHash: string;
@@ -50,7 +51,8 @@ export function createAuthRepository(db: Database) {
 
     /**
      * Registration in one transaction: the user, their organization, the OWNER membership,
-     * an audit entry and the first session either all exist or none do.
+     * the default SLA policy, an audit entry and the first session either all exist or none
+     * do.
      */
     createAccount(input: NewAccount) {
       return db.$transaction(async (tx) => {
@@ -58,6 +60,18 @@ export function createAuthRepository(db: Database) {
         const organization = await tx.organization.create({ data: input.organization });
         await tx.membership.create({
           data: { organizationId: organization.id, userId: user.id, role: 'OWNER' },
+        });
+        // Every organization starts with the default policy, so its tickets get due dates.
+        const policy = await tx.slaPolicy.create({
+          data: { organizationId: organization.id, name: DEFAULT_SLA_POLICY_NAME, isDefault: true },
+        });
+        await tx.slaTarget.createMany({
+          data: (Object.keys(DEFAULT_SLA_TARGETS) as TicketPriority[]).map((priority) => ({
+            organizationId: organization.id,
+            slaPolicyId: policy.id,
+            priority,
+            ...DEFAULT_SLA_TARGETS[priority],
+          })),
         });
         await tx.auditLog.create({
           data: {

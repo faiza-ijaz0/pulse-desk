@@ -90,7 +90,10 @@ export function TicketTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <div className="relative">
       {/* The connecting rail behind the icons. */}
-      <span aria-hidden="true" className="absolute top-2 bottom-2 left-3 w-px bg-border" />
+      <span
+        aria-hidden="true"
+        className="absolute top-2 bottom-2 left-3 w-px bg-linear-to-b from-accent/45 via-border-strong to-border"
+      />
       <ol aria-label="Activity" className="relative grid gap-4">
         {events.map((event) => {
           const { text, icon: Icon, danger } = describe(event);
@@ -99,10 +102,12 @@ export function TicketTimeline({ events }: { events: TimelineEvent[] }) {
             <li key={event.id} className="relative flex gap-3">
               <span
                 className={cn(
-                  'relative flex size-6 shrink-0 items-center justify-center rounded-full border bg-surface',
+                  'relative flex size-6 shrink-0 items-center justify-center rounded-full border shadow-xs',
                   danger
-                    ? 'border-danger/30 text-danger-foreground'
-                    : 'border-border text-muted-foreground',
+                    ? 'border-danger/35 bg-danger-subtle text-danger-foreground'
+                    : event.actorType === 'SYSTEM'
+                      ? 'border-accent/30 bg-accent-subtle text-accent-subtle-foreground'
+                      : 'border-border bg-surface text-muted-foreground',
                 )}
               >
                 <Icon className="size-3" aria-hidden="true" />

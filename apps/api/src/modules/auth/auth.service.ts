@@ -176,6 +176,29 @@ export function createAuthService({ repository, clock, logger, config }: AuthSer
       };
     },
 
+    /**
+     * A fresh session for a user who just proved who they are some other way (an account
+     * created from an invitation), active in `organizationId`.
+     */
+    async startSession(
+      user: SessionUser,
+      organizationId: string,
+      meta: RequestMeta,
+    ): Promise<IssuedSession> {
+      const now = clock.now();
+      const token = generateSessionToken();
+      const expiresAt = new Date(now.getTime() + absoluteTimeoutMs);
+      await repository.createSession({
+        tokenHash: tokenHashOf(token),
+        userId: user.id,
+        activeOrganizationId: organizationId,
+        expiresAt,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+      return { token, expiresAt, session: await buildSession(user, organizationId) };
+    },
+
     /** Idempotent; an unknown, expired or malformed token is simply ignored. */
     async logout(token: string | undefined): Promise<void> {
       if (token === undefined || !isWellFormedSessionToken(token)) return;

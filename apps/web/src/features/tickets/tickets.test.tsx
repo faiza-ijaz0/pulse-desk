@@ -33,6 +33,7 @@ function ticket(number: number, overrides: Partial<TicketSummary> = {}): TicketS
     closedAt: null,
     firstResponseBreachedAt: null,
     resolutionBreachedAt: null,
+    sla: { status: 'none', firstResponse: 'none', resolution: 'none' },
     createdAt: '2026-10-20T08:00:00.000Z',
     updatedAt: '2026-10-20T09:00:00.000Z',
     ...overrides,
@@ -427,5 +428,111 @@ describe('ticket detail', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Refund for duplicate charge' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('SLA status', () => {
+  const sla = (
+    status: TicketSummary['sla']['status'],
+    firstResponse: TicketSummary['sla']['firstResponse'],
+    resolution: TicketSummary['sla']['resolution'],
+  ) => ({ sla: { status, firstResponse, resolution } });
+
+  it('shows each ticket’s SLA state in the inbox, and nothing when no SLA applies', async () => {
+    inboxApi({
+      'GET /api/v1/tickets': json(
+        page([
+          ticket(6, sla('on_track', 'on_track', 'on_track')),
+          ticket(5, sla('at_risk', 'at_risk', 'on_track')),
+          ticket(4, sla('first_response_breached', 'breached', 'on_track')),
+          ticket(3, sla('resolution_breached', 'met', 'breached')),
+          ticket(2, sla('met', 'met', 'met')),
+          ticket(1),
+        ]),
+      ),
+    });
+    renderApp('/tickets');
+
+    const rows = within(await screen.findByRole('list', { name: 'Tickets' })).getAllByRole(
+      'listitem',
+    );
+    // Screen readers hear the "SLA:" prefix; sighted users see the label and an icon.
+    const slaText = (row: HTMLElement) =>
+      within(row)
+        .queryAllByText(/^SLA:/)
+        .map((prefix) => prefix.parentElement?.textContent);
+    expect(rows.map(slaText)).toEqual([
+      ['SLA: On track'],
+      ['SLA: At risk'],
+      ['SLA: Reply breached'],
+      ['SLA: Resolution breached'],
+      ['SLA: SLA met'],
+      [],
+    ]);
+  });
+
+  it('shows the overall state and each target’s state beside its due date', async () => {
+    mockApi({
+      routes: {
+        'GET /api/v1/tickets/12': json({
+          ...DETAIL,
+          ticket: {
+            ...DETAIL.ticket,
+            firstResponseDueAt: '2026-10-20T08:30:00.000Z',
+            resolutionDueAt: '2026-10-20T12:00:00.000Z',
+            ...sla('first_response_breached', 'breached', 'at_risk'),
+          },
+        }),
+      },
+    });
+    renderApp('/tickets/12');
+
+    const details = await screen.findByRole('region', { name: 'Details' });
+    const property = (label: string) => {
+      const term = within(details).getByText(label, { selector: 'dt' });
+      return term.nextElementSibling as HTMLElement;
+    };
+    expect(property('SLA').textContent).toBe('SLA: Reply breached');
+    expect(property('First reply due').textContent).toMatch(/SLA: Breached$/);
+    expect(within(property('First reply due')).getByRole('time')).toHaveAttribute(
+      'datetime',
+      '2026-10-20T08:30:00.000Z',
+    );
+    expect(property('Resolution due').textContent).toMatch(/SLA: At risk$/);
+  });
+
+  it('says so when a ticket has no SLA, and shows met targets as met', async () => {
+    mockApi({
+      routes: {
+        'GET /api/v1/tickets/12': json({
+          ...DETAIL,
+          ticket: { ...DETAIL.ticket, ...sla('none', 'none', 'none') },
+        }),
+        'GET /api/v1/tickets/13': json({
+          ...DETAIL,
+          ticket: {
+            ...DETAIL.ticket,
+            number: 13,
+            firstResponseDueAt: '2026-10-20T08:30:00.000Z',
+            resolutionDueAt: '2026-10-20T12:00:00.000Z',
+            ...sla('met', 'met', 'met'),
+          },
+        }),
+      },
+    });
+    const { router } = renderApp('/tickets/12');
+
+    const details = await screen.findByRole('region', { name: 'Details' });
+    expect(within(details).getByText('No SLA')).toBeInTheDocument();
+    expect(within(details).queryByText(/^SLA:/)).not.toBeInTheDocument();
+
+    await router.navigate('/tickets/13');
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('region', { name: 'Details' })).getByText('SLA met'),
+      ).toBeInTheDocument(),
+    );
+    const metLabels = within(screen.getByRole('region', { name: 'Details' })).getAllByText('Met');
+    expect(metLabels).toHaveLength(2);
   });
 });

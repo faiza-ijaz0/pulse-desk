@@ -140,3 +140,47 @@ export class TicketClosedError extends AppError {
     });
   }
 }
+
+export class AlreadyMemberError extends AppError {
+  constructor() {
+    super({
+      status: 409,
+      code: 'ALREADY_MEMBER',
+      title: 'Already a member',
+      detail: 'This person is already a member of the organization.',
+    });
+  }
+}
+
+/** Why an invitation link no longer works. Only the link's holder ever sees this. */
+export type InvitationProblem = 'unknown' | 'expired' | 'revoked' | 'accepted';
+
+const INVITATION_DETAILS: Record<InvitationProblem, string> = {
+  unknown: 'This invitation link isn’t valid. Ask for a new invitation.',
+  expired: 'This invitation has expired. Ask for a new invitation.',
+  revoked: 'This invitation was withdrawn. Ask for a new invitation.',
+  accepted: 'This invitation has already been used.',
+};
+
+export class InvitationInvalidError extends AppError {
+  constructor(readonly problem: InvitationProblem) {
+    super({
+      status: 410,
+      code: 'INVITATION_INVALID',
+      title: 'Invitation unavailable',
+      detail: INVITATION_DETAILS[problem],
+    });
+  }
+}
+
+export class InvitationEmailMismatchError extends AppError {
+  constructor() {
+    super({
+      status: 403,
+      code: 'INVITATION_EMAIL_MISMATCH',
+      title: 'Invitation is for another email',
+      detail:
+        'This invitation was sent to a different email address. Sign in with that address to accept it.',
+    });
+  }
+}

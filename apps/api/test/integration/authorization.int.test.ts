@@ -1,5 +1,5 @@
 import type { Database, Role } from '@pulsedesk/db';
-import { problemDetailsSchema } from '@pulsedesk/shared';
+import { DEFAULT_SLA_TARGETS, problemDetailsSchema } from '@pulsedesk/shared';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiRouter } from '../../src/api-router.ts';
@@ -45,12 +45,21 @@ async function resources(t: Tenant) {
   await db.ticket.create({
     data: { organizationId, number: ticketNumber, subject: 'Authz', customerId: customer.id },
   });
+  const invitation = await db.invitation.create({
+    data: {
+      organizationId,
+      email: `${crypto.randomUUID()}@example.com`,
+      tokenHash: crypto.randomUUID(),
+      expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
   return {
     teamId: team.id,
     tagId: tag.id,
     customerId: customer.id,
     userId: member.userId,
     ticketNumber,
+    invitationId: invitation.id,
   };
 }
 type Resources = Awaited<ReturnType<typeof resources>>;
@@ -78,6 +87,34 @@ const WRITE_ROUTES: WriteRoute[] = [
     body: () => ({ name: 'Renamed Org' }),
     allowed: ADMINS,
     scoped: false,
+  },
+  {
+    method: 'put',
+    pattern: '/sla-policy',
+    path: () => '/sla-policy',
+    body: () => ({
+      targets: {
+        ...DEFAULT_SLA_TARGETS,
+        LOW: { firstResponseMinutes: 600, resolutionMinutes: 6000 + number },
+      },
+    }),
+    allowed: ADMINS,
+    scoped: false,
+  },
+  {
+    method: 'post',
+    pattern: '/invitations',
+    path: () => '/invitations',
+    body: () => ({ email: `${crypto.randomUUID()}@example.com`, role: 'AGENT' }),
+    allowed: ADMINS,
+    scoped: false,
+  },
+  {
+    method: 'delete',
+    pattern: '/invitations/:invitationId',
+    path: (r) => `/invitations/${r.invitationId}`,
+    allowed: ADMINS,
+    scoped: true,
   },
   {
     method: 'patch',
@@ -194,6 +231,10 @@ const AUTH_ROUTES = [
   'post /auth/login',
   'post /auth/logout',
   'post /auth/active-organization',
+  // Keyed by an invitation token in the body (tests: invitations.int.test.ts).
+  'post /invitations/preview',
+  'post /invitations/accept',
+  'post /invitations/register',
 ];
 
 function send(client: Browser, route: WriteRoute, r: Resources) {
@@ -279,6 +320,7 @@ describe.each(WRITE_ROUTES.map((route) => [label(route), route] as const))('%s',
         customerId: crypto.randomUUID(),
         userId: crypto.randomUUID(),
         ticketNumber: 999_999,
+        invitationId: crypto.randomUUID(),
       };
       const probe = await send(a.clients[role], route, missing);
       const strip = (body: unknown) => ({
@@ -304,7 +346,7 @@ describe.each(WRITE_ROUTES.map((route) => [label(route), route] as const))('%s',
 
 /** Everything a write could have touched in an organization, for before/after comparison. */
 async function snapshot(organizationId: string) {
-  const [teams, tags, customers, tickets, members, messages, events, teamMembers] =
+  const [teams, tags, customers, tickets, members, messages, events, teamMembers, invitations] =
     await Promise.all([
       db.team.findMany({ where: { organizationId }, orderBy: { id: 'asc' } }),
       db.tag.findMany({ where: { organizationId }, orderBy: { id: 'asc' } }),
@@ -314,8 +356,9 @@ async function snapshot(organizationId: string) {
       db.message.count({ where: { organizationId } }),
       db.ticketEvent.count({ where: { organizationId } }),
       db.teamMember.count({ where: { organizationId } }),
+      db.invitation.findMany({ where: { organizationId }, orderBy: { id: 'asc' } }),
     ]);
-  return { teams, tags, customers, tickets, members, messages, events, teamMembers };
+  return { teams, tags, customers, tickets, members, messages, events, teamMembers, invitations };
 }
 
 describe('membership is re-checked on every request', () => {

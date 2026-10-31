@@ -2,7 +2,6 @@ import { createTeamRequestSchema, hasPermission, type Team } from '@pulsedesk/sh
 import { Pencil, Trash2, UsersRound, X } from 'lucide-react';
 import { useId, useState, type SubmitEvent } from 'react';
 import { EmptyState, ErrorState, PageHeader } from '@/components/common/states';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -11,11 +10,11 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Alert, Avatar, Skeleton } from '@/components/ui/misc';
 import { NativeSelect } from '@/components/ui/select';
-import { ROLE_LABELS } from '@/features/auth/role-label';
 import { useActiveSession } from '@/features/auth/session';
 import { describeAuthError } from '@/features/auth/form-helpers';
 import { useMemberOptions, useTeamOptions } from '@/features/tickets/api';
 import { ApiError } from '@/lib/api-client';
+import { MembersSection } from './members-section';
 import {
   useAddTeamMember,
   useCreateTeam,
@@ -276,41 +275,6 @@ function TeamCard({ team, canManage }: { team: Team; canManage: boolean }) {
   );
 }
 
-function MembersCard() {
-  const members = useMemberOptions();
-  return (
-    <Card aria-labelledby="members-title">
-      <CardHeader>
-        <CardTitle id="members-title">Members</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-3">
-        {members.isPending ? (
-          <Skeleton className="h-24" />
-        ) : members.isError ? (
-          <p role="alert" className="text-sm text-danger-foreground">
-            {describeAuthError(members.error)}
-          </p>
-        ) : (
-          <ul aria-label="Organization members" className="grid gap-2.5">
-            {members.data.map((member) => (
-              <li key={member.userId} className="flex items-center gap-2.5 text-sm">
-                <Avatar name={member.name} size="sm" className="ring-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate">{member.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-                </div>
-                <Badge tone={member.role === 'AGENT' ? 'neutral' : 'accent'}>
-                  {ROLE_LABELS[member.role]}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export function TeamPage() {
   const { activeOrganization } = useActiveSession();
   const canManage = hasPermission(activeOrganization.role, 'team:manage');
@@ -361,6 +325,9 @@ export function TeamPage() {
         title="Agents & teams"
         description="Who works in this organization, and how they’re grouped."
       />
+      <div className="mb-8">
+        <MembersSection />
+      </div>
       {!canManage && (
         <Alert tone="info" title="View only" className="mb-4">
           Only admins and owners can manage teams.
@@ -373,10 +340,7 @@ export function TeamPage() {
           </h2>
           {body}
         </section>
-        <div className="grid gap-5">
-          {canManage && <NewTeamCard />}
-          <MembersCard />
-        </div>
+        {canManage && <NewTeamCard />}
       </div>
     </>
   );

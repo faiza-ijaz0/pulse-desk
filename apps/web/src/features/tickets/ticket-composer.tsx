@@ -89,7 +89,7 @@ export function TicketComposer({ number }: { number: number }) {
       <div
         role="radiogroup"
         aria-label="Message type"
-        className="inline-flex w-fit rounded-md border border-border bg-surface-sunken p-0.5"
+        className="inline-flex w-fit rounded-lg border border-border bg-surface-sunken p-0.5"
       >
         {(Object.keys(MODES) as MessageVisibility[]).map((value) => {
           const Icon = value === 'INTERNAL' ? Lock : MessageSquare;
@@ -97,7 +97,7 @@ export function TicketComposer({ number }: { number: number }) {
             <label
               key={value}
               className={cn(
-                'inline-flex cursor-pointer items-center gap-1.5 rounded-[5px] px-2.5 py-1 text-sm font-medium transition-colors',
+                'inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium transition-colors',
                 'has-focus-visible:ring-2 has-focus-visible:ring-ring',
                 mode === value
                   ? value === 'INTERNAL'
@@ -130,8 +130,10 @@ export function TicketComposer({ number }: { number: number }) {
         onSubmit={onSubmit}
         noValidate
         className={cn(
-          'grid gap-2 rounded-lg border p-3',
-          internal ? 'border-warning/35 bg-warning-subtle/40' : 'border-border bg-surface',
+          'grid gap-2 rounded-xl border p-3 transition-[border-color,box-shadow] focus-within:shadow-[var(--highlight),var(--elevation-md)]',
+          internal
+            ? 'border-dashed border-warning/45 bg-warning-subtle/45'
+            : 'border-border bg-surface shadow-[var(--highlight),var(--elevation-sm)] focus-within:border-accent/40',
         )}
       >
         <label htmlFor={fieldId} className="sr-only">

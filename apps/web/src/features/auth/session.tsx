@@ -37,11 +37,11 @@ export function useSessionQuery() {
   });
 }
 
-/** Queries that don't depend on who is signed in (e.g. API liveness). */
-const SESSION_INDEPENDENT = new Set<unknown>(['auth', 'api-health']);
+/** Queries that don't depend on who is signed in (e.g. API liveness, an invitation link). */
+const SESSION_INDEPENDENT = new Set<unknown>(['auth', 'api-health', 'invitation-preview']);
 
 /** Everything cached for one user/organization must go when the session changes. */
-function replaceSession(queryClient: QueryClient, session: AuthSession | null) {
+export function replaceSession(queryClient: QueryClient, session: AuthSession | null) {
   queryClient.removeQueries({ predicate: (query) => !SESSION_INDEPENDENT.has(query.queryKey[0]) });
   queryClient.setQueryData(SESSION_QUERY_KEY, session);
 }

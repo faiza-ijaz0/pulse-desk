@@ -78,6 +78,17 @@ export const envSchema = z
     RATE_LIMIT_GLOBAL_PER_MINUTE: positiveInt.default(300),
     RATE_LIMIT_AUTH_PER_15_MINUTES: positiveInt.default(10),
     SHUTDOWN_TIMEOUT_MS: positiveInt.default(10_000),
+
+    // SLA breach sweep (modules/sla). It runs inside this API process, which assumes a single
+    // instance (docs/deployment.md). 0 turns it off; it never runs when NODE_ENV=test.
+    SLA_SWEEP_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    // Tickets per batch; a sweep reads at most a bounded number of batches per target.
+    SLA_SWEEP_BATCH_SIZE: positiveInt.max(1000).default(100),
+
+    // Auto-close sweep (modules/auto-close), also in-process (single instance). 0 turns it
+    // off; it never runs when NODE_ENV=test. Each organization sets its own delay.
+    AUTO_CLOSE_SWEEP_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(300),
+    AUTO_CLOSE_BATCH_SIZE: positiveInt.max(1000).default(100),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'development' && env.SESSION_SECRET === PLACEHOLDER_SESSION_SECRET) {

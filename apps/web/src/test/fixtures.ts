@@ -49,6 +49,7 @@ export function ticketSummary(overrides: Partial<TicketSummary> = {}): TicketSum
     closedAt: null,
     firstResponseBreachedAt: null,
     resolutionBreachedAt: null,
+    sla: { status: 'none', firstResponse: 'none', resolution: 'none' },
     createdAt: '2026-10-20T08:00:00.000Z',
     updatedAt: '2026-10-20T08:00:00.000Z',
     ...overrides,

@@ -14,6 +14,7 @@ export const REDACT_PATHS = [
   '*.password',
   '*.passwordHash',
   '*.token',
+  '*.tokenHash',
   '*.secret',
   '*.sessionToken',
 ];

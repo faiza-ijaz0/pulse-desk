@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { SlaTargetState } from './sla-status.ts';
 import {
+  DEFAULT_SLA_TARGETS,
   SLA_AT_RISK_REMAINING_FRACTION,
   evaluateSla,
-  type SlaTargetState,
   type SlaTicketState,
 } from './sla.ts';
 import { transitionTicketStatus } from './ticket-lifecycle.ts';
@@ -266,6 +267,37 @@ describe('evaluateSla — due dates as stored', () => {
   it('is deterministic: the same input and time give the same result', () => {
     const input = ticket({ firstRespondedAt: at(5) });
     expect(evaluateSla(input, at(200))).toEqual(evaluateSla(input, at(200)));
+  });
+
+  it('handles a zero-length window: at risk at creation, breached 1 ms later', () => {
+    // SlaTarget_minutes_check keeps policy targets above zero, but a due date equal to the
+    // creation time must still evaluate sensibly (no division, no "on track" forever).
+    const instant = ticket({ firstResponseDueAt: CREATED });
+    expect(evaluateSla(instant, CREATED).firstResponse).toBe('at_risk');
+    expect(evaluateSla(instant, ms(CREATED, 1)).firstResponse).toBe('breached');
+    expect(evaluateSla({ ...instant, firstRespondedAt: CREATED }, at(10)).firstResponse).toBe(
+      'met',
+    );
+  });
+});
+
+describe('DEFAULT_SLA_TARGETS', () => {
+  it('has a target for every priority that satisfies SlaTarget_minutes_check', () => {
+    expect(Object.keys(DEFAULT_SLA_TARGETS).sort()).toEqual(['HIGH', 'LOW', 'NORMAL', 'URGENT']);
+    for (const { firstResponseMinutes, resolutionMinutes } of Object.values(DEFAULT_SLA_TARGETS)) {
+      expect(Number.isInteger(firstResponseMinutes) && firstResponseMinutes > 0).toBe(true);
+      expect(resolutionMinutes).toBeGreaterThanOrEqual(firstResponseMinutes);
+    }
+  });
+
+  it('gets stricter as priority rises', () => {
+    const order = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
+    for (let i = 1; i < order.length; i++) {
+      const looser = DEFAULT_SLA_TARGETS[order[i - 1]!];
+      const stricter = DEFAULT_SLA_TARGETS[order[i]!];
+      expect(stricter.firstResponseMinutes).toBeLessThan(looser.firstResponseMinutes);
+      expect(stricter.resolutionMinutes).toBeLessThan(looser.resolutionMinutes);
+    }
   });
 });
 

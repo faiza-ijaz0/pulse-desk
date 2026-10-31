@@ -15,7 +15,12 @@ import {
   hasActiveFilters,
   type TicketFilters,
 } from './filters';
-import { TicketPriorityLabel, TicketStatusBadge } from './ticket-badges';
+import {
+  PRIORITY_STRIPES,
+  SlaBadge,
+  TicketPriorityLabel,
+  TicketStatusBadge,
+} from './ticket-badges';
 import { TicketFiltersBar } from './ticket-filters';
 import { AssigneeLabel, RelativeTime, TagList } from './ticket-parts';
 
@@ -27,19 +32,25 @@ export function TicketRow({ ticket }: { ticket: TicketSummary }) {
   return (
     // The subject link stretches over the whole row (after:inset-0), so the row is one
     // click target with one short accessible name, and the rest stays readable text.
-    <li className="relative px-4 py-3 transition-colors focus-within:bg-surface-hover/60 hover:bg-surface-hover/60 sm:px-5">
+    <li className="group relative px-4 py-3.5 transition-colors focus-within:bg-accent-subtle/45 hover:bg-accent-subtle/45 sm:px-5">
+      {/* Priority edge (decorative: the priority is also written out in the row). */}
+      <span
+        aria-hidden="true"
+        className={`absolute top-2.5 bottom-2.5 left-0 w-0.75 rounded-r-full opacity-80 transition-opacity group-hover:opacity-100 ${PRIORITY_STRIPES[ticket.priority]}`}
+      />
       <div className={ROW_GRID}>
         <div className="min-w-0">
           <Link
             to={`/tickets/${ticket.number}`}
-            className="block truncate text-sm font-medium after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
+            className="block truncate text-sm font-semibold after:absolute after:inset-0 after:rounded-[inherit] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-inset"
           >
-            <span className="mr-1 font-mono text-xs font-normal text-muted-foreground">
+            <span className="mr-1 rounded-md bg-surface-sunken px-1.5 py-0.5 font-mono text-xs font-normal text-muted-foreground ring-1 ring-border ring-inset">
               #{ticket.number}
             </span>{' '}
             {ticket.subject}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <SlaBadge status={ticket.sla.status} />
             <span className="truncate">{ticket.customer.name ?? ticket.customer.email}</span>
             {ticket.team && (
               <>
@@ -136,7 +147,7 @@ export function TicketInboxPage() {
       <>
         <div
           aria-hidden="true"
-          className={`hidden border-b border-border bg-surface-sunken/60 px-5 py-2 text-xs font-medium text-muted-foreground ${ROW_GRID}`}
+          className={`hidden border-b border-border bg-surface-sunken/70 px-5 py-2.5 text-2xs font-semibold tracking-wider text-muted-foreground uppercase ${ROW_GRID}`}
         >
           {COLUMN_HEADERS.map((header) => (
             <span key={header} className={header === 'Updated' ? 'text-right' : undefined}>
@@ -184,7 +195,7 @@ export function TicketInboxPage() {
         description="Every conversation with your customers, in one queue."
         actions={<NewTicketDialog />}
       />
-      <Card className="mb-4 p-4">
+      <Card className="mb-4 bg-surface/85 p-4 backdrop-blur-md">
         <TicketFiltersBar filters={filters} onChange={setFilters} />
       </Card>
       <Card className="overflow-hidden">{body}</Card>

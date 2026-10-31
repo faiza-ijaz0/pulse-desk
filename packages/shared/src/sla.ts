@@ -1,4 +1,23 @@
-import { isTicketActive, type TicketStatus } from './tickets.ts';
+import type { SlaEvaluation, SlaStatus, SlaTargetState } from './sla-status.ts';
+import { isTicketActive, type TicketPriority, type TicketStatus } from './tickets.ts';
+
+/** The name of the policy every new organization starts with. */
+export const DEFAULT_SLA_POLICY_NAME = 'Standard';
+
+/**
+ * Targets of the default policy, in minutes from ticket creation (calendar time). Every new
+ * organization gets them at sign-up (apps/api auth repository), and the development seed
+ * uses them too. They satisfy `SlaTarget_minutes_check` (first response > 0, resolution ≥
+ * first response).
+ */
+export const DEFAULT_SLA_TARGETS: Readonly<
+  Record<TicketPriority, { firstResponseMinutes: number; resolutionMinutes: number }>
+> = {
+  URGENT: { firstResponseMinutes: 30, resolutionMinutes: 4 * 60 },
+  HIGH: { firstResponseMinutes: 60, resolutionMinutes: 8 * 60 },
+  NORMAL: { firstResponseMinutes: 4 * 60, resolutionMinutes: 24 * 60 },
+  LOW: { firstResponseMinutes: 8 * 60, resolutionMinutes: 72 * 60 },
+};
 
 /**
  * A target counts as at risk once no more than this share of its window (ticket creation to
@@ -21,28 +40,18 @@ export type SlaTicketState = {
   resolutionBreachedAt: Date | null;
 };
 
-/**
- * One target at one moment:
+/*
+ * One target at one moment (`SlaTargetState`, sla-status.ts):
  * - `none`: the ticket has no due date for it (no SLA policy applied at creation);
  * - `on_track` / `at_risk`: unmet, due date not passed yet;
  * - `met`: its clock stopped at or before the due date;
  * - `breached`: a breach was recorded, its clock stopped after the due date, or it is still
  *   running past it.
+ *
+ * The ticket's overall state (`SlaStatus`) is the most urgent of its two targets, a breach
+ * first. When both are breached it is `resolution_breached`; the per-target states keep the
+ * detail.
  */
-export type SlaTargetState = 'none' | 'on_track' | 'at_risk' | 'met' | 'breached';
-
-/**
- * The ticket's overall SLA state: the most urgent of its two targets, a breach first. When
- * both are breached it is `resolution_breached`; the per-target states keep the detail.
- */
-export type SlaStatus =
-  'none' | 'met' | 'on_track' | 'at_risk' | 'first_response_breached' | 'resolution_breached';
-
-export type SlaEvaluation = {
-  status: SlaStatus;
-  firstResponse: SlaTargetState;
-  resolution: SlaTargetState;
-};
 
 function evaluateTarget(
   startedAt: Date,

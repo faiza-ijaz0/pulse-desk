@@ -86,8 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'SLA policies',
         to: '/sla',
         icon: Timer,
-        status: 'planned',
-        phase: 'Phase 5',
+        status: 'available',
         summary:
           'First-response and resolution targets per priority, with automatic breach detection.',
       },

@@ -711,9 +711,11 @@ describe('GET /api/v1/tickets/:number', () => {
       data: { firstResponseBreachedAt: at(30), resolutionBreachedAt: at(240), ...restore },
     });
     try {
+      // A recorded breach is history: whatever the due dates say, both targets read breached.
       const recorded = {
         firstResponseBreachedAt: at(30).toISOString(),
         resolutionBreachedAt: at(240).toISOString(),
+        sla: { status: 'resolution_breached', firstResponse: 'breached', resolution: 'breached' },
       };
       const rows = await list(desk.owner.client);
       expect(rows.find((t) => t.number === 2)).toMatchObject(recorded);
