@@ -1,6 +1,6 @@
 # Architecture Overview
 
-> Status: **Phase 3 — authentication and organizations.** This document describes the target architecture;
+> Status: **Phase 5E — SLA policy management, plus invitations and member management.** This document describes the target architecture;
 > [Implementation status](#implementation-status) says what exists today.
 
 ## 1. System context
@@ -97,12 +97,14 @@ apps/api/src/
 └── modules/
     ├── auth/                 # login, logout, session lifecycle
     ├── organizations/
-    ├── members/              # memberships, roles, invitations
+    ├── members/              # memberships, roles
+    ├── invitations/          # invite links: create, revoke, preview, accept, sign up
     ├── teams/
     ├── customers/
     ├── tickets/
     ├── messages/
-    ├── sla/
+    ├── sla/                  # breach sweep
+    ├── sla-policies/         # default policy targets (GET/PUT /sla-policy)
     └── analytics/
         ├── tickets.routes.ts       # path + middleware + validation wiring only
         ├── tickets.controller.ts   # maps HTTP ⇄ service call; no business rules
@@ -202,9 +204,15 @@ Summarized here; full details are in [data-model.md](./data-model.md) and
 | `apps/web` — design system, app shell (sidebar, drawer, top bar, command menu, theme), dashboard preview with labelled sample data                                                             | ✅ Phase 2                                                                   |
 | `e2e` — Playwright journeys + axe WCAG 2.2 AA scans in both themes                                                                                                                             | ✅ Phase 2                                                                   |
 | Authentication (sign-up, sign-in, sign-out, session restore), organization switching, tenant context, RBAC, organization and member APIs                                                       | ✅ Phase 3                                                                   |
-| Invitations, member-management UI, password reset                                                                                                                                              | ⏳ Phase 3 (remaining)                                                       |
+| Invitations (single-use hashed links, 7-day expiry, invited email only) and member-management UI                                                                                               | ✅ Phase 3 (remaining part)                                                  |
+| Password reset                                                                                                                                                                                 | ⏳ later (needs email delivery)                                              |
 | Ticket read path: `GET /tickets` (filters, cursor pagination), `GET /tickets/:number` (conversation, internal notes, typed timeline), `GET /teams`, `GET /tags`; inbox and read-only detail UI | ✅ Phase 4A                                                                  |
 | Ticket write path: `POST /tickets`, `PATCH /tickets/:number`, `POST /tickets/:number/messages`, lifecycle rules, typed timeline events; ticket creation, editable properties and composer UI   | ✅ Phase 4B                                                                  |
 | Directory and settings: customers (list, search, detail, edit, ticket history), team and tag management, global search (`GET /search`, command menu), organization settings                    | ✅ Phase 4C                                                                  |
 | Reliability review: lock ordering for concurrent writes, bounded transaction retry, write-endpoint authorization matrix, no-op writes skip audit                                               | ✅ Phase 4D                                                                  |
-| Email delivery, Socket.IO, Redis/BullMQ, SLA breach jobs, analytics                                                                                                                            | ⏳ Phase 4C–6                                                                |
+| Test-database safety: reset/E2E target guard (local `pulsedesk_test` only), migration SQL scanner, migration-upgrade test                                                                      | ✅ Phase 5A                                                                  |
+| SLA data layer: breach markers, event actor type (`USER`/`SYSTEM`), auto-close settings and sweep indexes; `evaluateSla`                                                                       | ✅ Phase 5B                                                                  |
+| SLA breach detection: default policy at sign-up, in-process breach sweep (single instance), computed `sla` in ticket responses, SLA badges in the inbox and ticket details                     | ✅ Phase 5C                                                                  |
+| Auto-close: per-organization settings (API + settings UI), in-process sweep closing quiet solved tickets with a SYSTEM timeline event                                                          | ✅ Phase 5D                                                                  |
+| SLA policy management (`/sla`): default policy targets per priority (`GET`/`PUT /api/v1/sla-policy`, audited), new tickets only, premium page with a read-only view for agents                 | ✅ Phase 5E                                                                  |
+| Email delivery, Socket.IO, Redis/BullMQ, analytics                                                                                                                                             | ⏳ Phase 4C–6                                                                |

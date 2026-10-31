@@ -1,11 +1,13 @@
 # Deployment
 
-> **Status (2026-10-22):** the repository is prepared for this deployment.
+> **Status (2026-10-31):** the repository is prepared for this deployment.
 >
 > - **Done:** the Neon PostgreSQL production database exists, and its first two migrations
 >   (`20261015000000_init`, `20261018000000_defer_message_customer_fk`) have been applied.
-> - **Pending (last known status, 2026-10-28):** `20261026000000_case_insensitive_team_tag_names`
->   and `20261027000000_sla_breach_markers_and_auto_close` haven't been applied to Neon. Apply
+> - **Pending (last known status):** three migrations haven't been applied to Neon:
+>   `20261026000000_case_insensitive_team_tag_names` and
+>   `20261027000000_sla_breach_markers_and_auto_close` (pending at the last check, 2026-10-28),
+>   and `20261031000000_invitation_lifecycle` (added since, so not yet on Neon either). Apply
 >   them with Step 2 before the API that needs them starts. Check `migrate:status` rather than
 >   relying on this note.
 > - **Not done:** the Render service and the Vercel project haven't been created, and
@@ -30,7 +32,9 @@ Browser ──HTTPS──▶ Vercel (static SPA + reverse proxy) ──HTTPS + s
   `403`, except `GET /health`. So the public `*.onrender.com` hostname can't be used to
   bypass Vercel.
 - **Exactly one API instance.** Rate limits use an in-memory store, so they only hold with a
-  single instance until the Redis store lands (overview D12).
+  single instance until the Redis store lands (overview D12). The SLA breach sweep and the
+  auto-close sweep also run inside the API process on timers; with more instances they stay
+  correct (row locks), but every instance would repeat the scanning work.
 
 ## Configuration in the repository
 
@@ -156,9 +160,9 @@ them with `VITE_`.
 ## Step 2: Apply migrations (before each release that changes the schema)
 
 > **Check before every release.** Run `migrate:status` against Neon: it lists what is pending.
-> At the last check, two migrations were pending (`20261026000000_case_insensitive_team_tag_names`,
-> `20261027000000_sla_breach_markers_and_auto_close`). Apply pending migrations with this step
-> before the API version that needs them starts.
+> As last known, three migrations are pending (`20261026000000_case_insensitive_team_tag_names`,
+> `20261027000000_sla_breach_markers_and_auto_close` and `20261031000000_invitation_lifecycle`).
+> Apply pending migrations with this step before the API version that needs them starts.
 
 From a trusted machine with this repository checked out at the commit being released:
 
@@ -182,6 +186,29 @@ A `DATABASE_URL` set in the shell wins over the one in your local `.env`. Check 
 that `migrate:status` prints before running `db:deploy`. Apply migrations **before** the new
 API version starts, and keep migrations backwards-compatible with the running version
 (add first, remove later).
+
+> **Invitations and member management** add migration `20261031000000_invitation_lifecycle` (additive: two
+> nullable `Invitation` columns, CHECKs and a partial unique index). Apply it **before** the new
+> API starts (step 2): the API writes the new columns. It refuses to run if existing invitation
+> rows break the new rules (none are expected: no code wrote invitations before), naming them.
+> No new environment variables; invitation tokens are hashed with `SESSION_SECRET`, so rotating
+> that secret also invalidates open invitation links. There is no email delivery: inviters copy
+> the link shown once, and the link is a bearer credential until email delivery exists
+> (docs/architecture/auth-and-sessions.md §11).
+>
+> **Rolling this migration back** (by hand, if ever needed): before dropping anything, delete
+> the invitations that have ended — `DELETE FROM "Invitation" WHERE "revokedAt" IS NOT NULL OR
+"acceptedAt" IS NOT NULL` (their history stays in `AuditLog`). Dropping `revokedAt` otherwise
+> makes every revoked invitation open again, its link valid for any later API version, and
+> re-applying the migration would stop on the duplicate open invitations. Then follow the
+> comment at the top of the migration.
+
+> **SLA policy management (Phase 5E)** adds no migration: it uses the existing `SlaPolicy` and
+> `SlaTarget` tables. It adds `GET`/`PUT /api/v1/sla-policy`, which the new `/sla` page calls,
+> so deploy the API before the web app (the order below). A web app deployed first shows
+> “Couldn’t load SLA targets” on `/sla` until the API catches up; nothing else is affected.
+> Nothing is backfilled: organizations without a default policy get one when an admin first
+> saves targets, and existing tickets keep their due dates.
 
 **Release order** when a release changes the schema or the API's responses:
 
@@ -240,23 +267,27 @@ requires the proxy secret anyway.
 
 ### Render environment variables
 
-| Variable                       | Value                                                                                                                                                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                     | `production`                                                                                                                                                                                                                                |
-| `NODE_VERSION`                 | `24` (matches `.nvmrc` and `engines`)                                                                                                                                                                                                       |
-| `DATABASE_URL`                 | Neon **pooled** connection string (secret)                                                                                                                                                                                                  |
-| `SESSION_SECRET`               | Generated value (secret). Rotating it signs everyone out.                                                                                                                                                                                   |
-| `SESSION_COOKIE_NAME`          | `__Host-pd_sid` (required in production)                                                                                                                                                                                                    |
-| `SESSION_COOKIE_SECURE`        | `true` (required in production)                                                                                                                                                                                                             |
-| `WEB_ORIGIN`                   | The exact public origin of the Vercel site, e.g. `https://<project>.vercel.app` or your custom domain, with no path or trailing slash. Comma-separate several.                                                                              |
-| `TRUST_PROXY_HOPS`             | `2` **provisionally** (Vercel's proxy + Render's load balancer). It is an assumption, not a verified value: measure it after deploying (see below).                                                                                         |
-| `PROXY_SHARED_SECRET`          | Generated value (secret). Identical to the Vercel value.                                                                                                                                                                                    |
-| `API_HOST`                     | `0.0.0.0`                                                                                                                                                                                                                                   |
-| `API_PORT`                     | `10000`, or whatever `PORT` Render assigns. The API reads `API_PORT`, not `PORT`.                                                                                                                                                           |
-| `LOG_LEVEL`                    | `info`                                                                                                                                                                                                                                      |
-| `APP_VERSION`                  | Optional: the release tag or commit SHA (shown by `/health`).                                                                                                                                                                               |
-| `RATE_LIMIT_GLOBAL_PER_MINUTE` | Optional. Default **`300`**: requests per minute per client IP, for every request that passes the proxy-secret check (`GET /health` is exempt). Positive integer. Per-IP only if `TRUST_PROXY_HOPS` is right.                               |
-| `SHUTDOWN_TIMEOUT_MS`          | Optional. Default **`10000`** (10 s): on `SIGTERM`/`SIGINT` (e.g. a Render redeploy or restart), how long in-flight requests get to finish before the process exits anyway. Positive integer. Keep it below Render's shutdown grace period. |
+| Variable                            | Value                                                                                                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                          | `production`                                                                                                                                                                                                                                |
+| `NODE_VERSION`                      | `24` (matches `.nvmrc` and `engines`)                                                                                                                                                                                                       |
+| `DATABASE_URL`                      | Neon **pooled** connection string (secret)                                                                                                                                                                                                  |
+| `SESSION_SECRET`                    | Generated value (secret). Rotating it signs everyone out.                                                                                                                                                                                   |
+| `SESSION_COOKIE_NAME`               | `__Host-pd_sid` (required in production)                                                                                                                                                                                                    |
+| `SESSION_COOKIE_SECURE`             | `true` (required in production)                                                                                                                                                                                                             |
+| `WEB_ORIGIN`                        | The exact public origin of the Vercel site, e.g. `https://<project>.vercel.app` or your custom domain, with no path or trailing slash. Comma-separate several.                                                                              |
+| `TRUST_PROXY_HOPS`                  | `2` **provisionally** (Vercel's proxy + Render's load balancer). It is an assumption, not a verified value: measure it after deploying (see below).                                                                                         |
+| `PROXY_SHARED_SECRET`               | Generated value (secret). Identical to the Vercel value.                                                                                                                                                                                    |
+| `API_HOST`                          | `0.0.0.0`                                                                                                                                                                                                                                   |
+| `API_PORT`                          | `10000`, or whatever `PORT` Render assigns. The API reads `API_PORT`, not `PORT`.                                                                                                                                                           |
+| `LOG_LEVEL`                         | `info`                                                                                                                                                                                                                                      |
+| `APP_VERSION`                       | Optional: the release tag or commit SHA (shown by `/health`).                                                                                                                                                                               |
+| `RATE_LIMIT_GLOBAL_PER_MINUTE`      | Optional. Default **`300`**: requests per minute per client IP, for every request that passes the proxy-secret check (`GET /health` is exempt). Positive integer. Per-IP only if `TRUST_PROXY_HOPS` is right.                               |
+| `SHUTDOWN_TIMEOUT_MS`               | Optional. Default **`10000`** (10 s): on `SIGTERM`/`SIGINT` (e.g. a Render redeploy or restart), how long in-flight requests get to finish before the process exits anyway. Positive integer. Keep it below Render's shutdown grace period. |
+| `SLA_SWEEP_INTERVAL_SECONDS`        | Optional. Default **`60`**: how often the API records SLA breaches (0–3600; `0` turns the sweep off). It starts once the server is listening and stops on shutdown. Never runs with `NODE_ENV=test`.                                        |
+| `SLA_SWEEP_BATCH_SIZE`              | Optional. Default **`100`** (1–1000): tickets per batch; a run reads at most 10 batches per SLA target and leaves the rest for the next run.                                                                                                |
+| `AUTO_CLOSE_SWEEP_INTERVAL_SECONDS` | Optional. Default **`300`**: how often the API closes quiet solved tickets for organizations with auto-close on (0–3600; `0` turns it off). Same lifecycle as the SLA sweep; never runs with `NODE_ENV=test`.                               |
+| `AUTO_CLOSE_BATCH_SIZE`             | Optional. Default **`100`** (1–1000): tickets per batch; a run reads at most 10 batches.                                                                                                                                                    |
 
 `SESSION_IDLE_TIMEOUT_MINUTES`, `SESSION_ABSOLUTE_TIMEOUT_DAYS` and
 `RATE_LIMIT_AUTH_PER_15_MINUTES` are also optional; their defaults are in `.env.example`. The API validates every variable at startup and

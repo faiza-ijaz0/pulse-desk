@@ -4,11 +4,14 @@
 manage support tickets, customer conversations, support agents and teams,
 service-level agreements (SLAs), and team analytics.
 
-> **Project status: Phase 3 — authentication and organizations.**
-> Sign-up (which creates your organization), sign-in, sign-out, session restore, organization
-> switching, tenant isolation and role enforcement work end to end against PostgreSQL. Tickets,
-> SLAs and analytics are not built yet; the dashboard shows clearly-labelled **sample data**.
-> See [Roadmap](#roadmap).
+> **Project status: Phase 5E complete, plus invitations and member management.**
+> Sign-up (which creates your organization and its default SLA policy), sign-in, organization
+> switching, tenant isolation, role enforcement, tickets (inbox, detail, replies, internal notes,
+> timeline), customers, teams, tags and search work end to end against PostgreSQL. SLA due dates,
+> live SLA states, automatic breach recording, per-organization auto-close and editable SLA
+> targets work too, and so do invitation links and member management.
+> Not built yet: password reset, email delivery, real-time updates and
+> analytics; the dashboard shows clearly-labelled **sample data**. See [Roadmap](#roadmap).
 
 ## Planned features
 
@@ -79,14 +82,14 @@ pnpm build && pnpm test:e2e
 
 ## Roadmap
 
-| Phase                               | Scope                                                                                           |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **1 — Foundation** ✅               | Architecture, data model, auth design, conventions                                              |
-| **2 — Skeleton & quality gates** ✅ | Monorepo, design system and app shell, API foundation, schema + migration + seed, tests, CI     |
-| **3 — Auth & organizations** 🚧     | Sign-in, sessions, org switching, memberships, invitations, RBAC, cross-tenant API test harness |
-| **4 — Tickets & conversations**     | Ticket inbox, messages and notes, assignment, tags, filters, Socket.IO live updates             |
-| **5 — SLAs & jobs**                 | Redis + BullMQ, SLA policies, due-date calculation, breach detection, notifications             |
-| **6 — Analytics & polish**          | Live dashboards, accessibility audit, performance, PostgreSQL RLS defense-in-depth              |
+| Phase                               | Scope                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **1 — Foundation** ✅               | Architecture, data model, auth design, conventions                                                                 |
+| **2 — Skeleton & quality gates** ✅ | Monorepo, design system and app shell, API foundation, schema + migration + seed, tests, CI                        |
+| **3 — Auth & organizations** 🚧     | Sign-in, sessions, org switching, memberships, invitations, RBAC, cross-tenant API test harness ✅; password reset |
+| **4 — Tickets & conversations** 🚧  | Ticket inbox, messages and notes, assignment, tags, filters ✅; Socket.IO live updates                             |
+| **5 — SLAs & jobs** 🚧              | Due dates, SLA states, breach detection, auto-close, SLA policy management ✅; notifications                       |
+| **6 — Analytics & polish**          | Live dashboards, accessibility audit, performance, PostgreSQL RLS defense-in-depth                                 |
 
 ## License
 

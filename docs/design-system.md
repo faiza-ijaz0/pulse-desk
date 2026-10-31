@@ -1,8 +1,11 @@
 # Design System
 
 PulseDesk is a tool support agents keep open all day. The visual language is **calm,
-dense and precise**: neutral surfaces, one restrained indigo-violet accent, crisp hairline
-borders, soft layered shadows, and motion only where it explains a change.
+dense and premium**: a midnight-navy frame (the sidebar and auth panel stay midnight in both
+themes), porcelain or blue-black work surfaces, an electric-violet accent with selective
+fuchsia and turquoise, crisp hairline borders, soft layered shadows, and motion only where it
+explains a change. Gradients are decorative (brand mark, page aurora, hero, active
+navigation edge, chart bars); text never depends on one.
 
 The living reference is the **Design system** page in the app (`/design-system`), which
 renders every token, component and state below in the current theme.
@@ -14,19 +17,29 @@ mapped onto Tailwind utilities through `@theme`. Components use semantic tokens 
 (`bg-surface`, `text-muted-foreground`, `border-border`) — never raw colors — so the dark
 theme is a set of different values, not different class names.
 
-| Group      | Tokens                                                                                             | Notes                                                                                                                                    |
-| ---------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Surfaces   | `background`, `surface`, `surface-sunken`, `surface-hover`, `surface-overlay`                      | Cool neutrals with a faint indigo tint (OKLCH hue 285). Pages sit on `background`; cards on `surface`.                                   |
-| Text       | `foreground`, `muted-foreground`, `subtle-foreground`                                              | `muted` for secondary text; `subtle` for placeholders, icons and tertiary metadata. Both meet AA on every surface.                       |
-| Lines      | `border`, `border-strong`, `input`                                                                 | 1px hairlines; `border-strong` for controls and emphasis.                                                                                |
-| Accent     | `accent`, `accent-hover`, `accent-foreground`, `accent-subtle`, `accent-subtle-foreground`, `ring` | The only brand color. Primary actions, active navigation, focus rings, selection.                                                        |
-| Status     | `success`, `warning`, `danger`, `info`, each with `-subtle` and `-foreground`                      | Reserved for state. Always paired with text and/or an icon, never color alone.                                                           |
-| Data viz   | `chart-1`, `chart-2`                                                                               | Categorical slots, validated for color-vision deficiency separation and ≥ 3:1 contrast in both themes.                                   |
-| Elevation  | `shadow-xs` … `shadow-lg`, `--highlight`                                                           | Tinted with the neutral hue (not pure black). `xs` for controls and cards, `lg` for overlays. Primary buttons add a 1px inner highlight. |
-| Radius     | `radius-xs` (4px) … `radius-xl` (14px)                                                             | Controls `md` (8px), cards `lg` (10px), dialogs `xl`.                                                                                    |
-| Typography | Geist (UI), Geist Mono (IDs, shortcuts); `text-2xs` 11px … `text-3xl` 28px                         | A dense product scale: 13px for tables and controls, 14px body. Headings use −0.015em tracking. Tabular numerals in columns only.        |
-| Spacing    | Tailwind's 4px base unit                                                                           | Page gutters 16 / 24 / 32px by breakpoint; card padding 20px; control height 32–40px.                                                    |
-| Motion     | `ease-out-quint`; 120–260ms                                                                        | Overlay, pop and drawer keyframes are defined as tokens.                                                                                 |
+| Group      | Tokens                                                                                             | Notes                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surfaces   | `background`, `surface`, `surface-sunken`, `surface-hover`, `surface-overlay`, `sidebar`           | Light: porcelain with a faint violet cast (hue 292). Dark: blue-black midnight (hue 272). `sidebar` is the midnight frame in both themes.     |
+| Text       | `foreground`, `muted-foreground`, `subtle-foreground`                                              | Midnight-navy text in light mode. `muted` for secondary text; `subtle` for placeholders, icons and tertiary metadata. All meet AA everywhere. |
+| Lines      | `border`, `border-strong`, `input`                                                                 | 1px hairlines; `border-strong` for controls and emphasis.                                                                                     |
+| Accent     | `accent`, `accent-hover`, `accent-foreground`, `accent-subtle`, `accent-subtle-foreground`, `ring` | Electric violet. Primary actions, active navigation, focus rings, selection.                                                                  |
+| Supporting | `magenta` (+ `-subtle`, `-foreground`), `coral`                                                    | Fuchsia for gradients, avatars and one dashboard metric; coral for the High priority edge. Used sparingly.                                    |
+| Status     | `success`, `warning`, `danger`, `info`, each with `-subtle` and `-foreground`                      | Reserved for state; `info` is turquoise. Always paired with text and/or an icon, never color alone.                                           |
+| Data viz   | `chart-1` … `chart-4`                                                                              | Violet, turquoise, fuchsia, amber; ≥ 3:1 against the surface in both themes.                                                                  |
+| Gradients  | `bg-brand-gradient`, `bg-brand-gradient-soft`, `bg-aurora`                                         | Utilities over `--gradient-*` tokens. Decorative only; text sits on the soft gradient only where it was checked (≥ 6.6:1).                    |
+| Elevation  | `shadow-xs` … `shadow-lg`, `--highlight`, `--glow`                                                 | Tinted with midnight, not pure black. Cards use `highlight` + `sm`; overlays `lg`; primary buttons glow violet on hover.                      |
+| Radius     | `radius-xs` (4px) … `radius-2xl` (20px)                                                            | Controls and buttons `lg` (12px) or `md` (8px); cards `xl` (16px); hero and dialogs `2xl`. Badges are pills.                                  |
+
+**Midnight scope.** `.midnight` applies the dark palette to one region (the sidebar, the mobile
+drawer and the auth brand panel) whatever the app theme, so every component inside it stays
+legible without different class names. Don't use `dark:` variants inside it: they follow the
+app theme, not the scope.
+
+Every text/surface pair is checked numerically in both themes and inside the midnight scope
+(WCAG ratio from the OKLCH values): text ≥ 4.5:1, focus ring and chart colors ≥ 3:1.
+| Typography | Geist (UI), Geist Mono (IDs, shortcuts); `text-2xs` 11px … `text-3xl` 28px | A dense product scale: 13px for tables and controls, 14px body. Headings use −0.015em tracking. Tabular numerals in columns only. |
+| Spacing | Tailwind's 4px base unit | Page gutters 16 / 24 / 32px by breakpoint; card padding 20px; control height 32–40px. |
+| Motion | `ease-out-quint`; 120–260ms | Overlay, pop and drawer keyframes are defined as tokens. |
 
 Fonts are self-hosted from npm (`@fontsource-variable/*`), so no third-party font CDN is
 contacted.
@@ -67,7 +80,10 @@ separate two-column auth layout (form plus a product panel on wide screens).
 ## Motion
 
 - Page content fades up 6px on route change (240ms); dashboard cards stagger by 40ms.
-- The active navigation item's background glides between items (shared layout animation).
+- The active navigation item's violet pill (with its gradient edge) glides between items
+  (shared layout animation).
+- Metric cards lift 2px on hover; list rows and the composer change their wash or border on
+  hover and focus. Nothing moves on its own except loading skeletons.
 - Overlays pop in from 97% scale; drawers slide.
 - `MotionConfig reducedMotion="user"` plus a global `prefers-reduced-motion` rule reduce all
   of it to near-instant changes.
