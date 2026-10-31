@@ -17,7 +17,11 @@ export function MobileNav({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent aria-describedby="mobile-nav-description">
+      {/* The same midnight surface as the desktop sidebar, in both themes. */}
+      <SheetContent
+        aria-describedby="mobile-nav-description"
+        className="midnight border-white/10 bg-sidebar text-foreground"
+      >
         <div className="flex h-14 items-center gap-2.5 px-5">
           <BrandMark />
           <SheetTitle className="text-[0.9375rem] font-semibold tracking-tight">

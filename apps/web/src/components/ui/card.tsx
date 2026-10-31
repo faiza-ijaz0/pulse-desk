@@ -1,10 +1,14 @@
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 
+/** A layered surface: hairline border, soft midnight-tinted shadow, generous radius. */
 export function Card({ className, ...props }: ComponentProps<'section'>) {
   return (
     <section
-      className={cn('rounded-lg border border-border bg-surface shadow-xs', className)}
+      className={cn(
+        'rounded-xl border border-border bg-surface shadow-[var(--highlight),var(--elevation-sm)]',
+        className,
+      )}
       {...props}
     />
   );
@@ -24,7 +28,10 @@ export function CardHeader({ className, ...props }: ComponentProps<'div'>) {
 
 export function CardTitle({ className, children, ...props }: ComponentProps<'h2'>) {
   return (
-    <h2 className={cn('text-base font-semibold text-foreground', className)} {...props}>
+    <h2
+      className={cn('text-base font-semibold tracking-tight text-foreground', className)}
+      {...props}
+    >
       {children}
     </h2>
   );

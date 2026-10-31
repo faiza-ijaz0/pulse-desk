@@ -14,111 +14,167 @@
 :root {
   color-scheme: light;
 
-  /* Surfaces — cool, very slightly indigo-tinted neutrals. */
-  --background: oklch(0.984 0.003 286);
+  /* Surfaces — porcelain whites with a faint violet cast; pages sit on `background`. */
+  --background: oklch(0.982 0.007 292);
   --surface: oklch(1 0 0);
-  --surface-sunken: oklch(0.967 0.004 286);
-  --surface-hover: oklch(0.955 0.005 286);
+  --surface-sunken: oklch(0.966 0.011 292);
+  --surface-hover: oklch(0.952 0.016 292);
   --surface-overlay: oklch(1 0 0);
 
-  /* Text */
-  --foreground: oklch(0.22 0.018 285);
-  --muted-foreground: oklch(0.45 0.016 285);
-  --subtle-foreground: oklch(0.52 0.013 285);
+  /* Text — midnight navy, not grey. */
+  --foreground: oklch(0.21 0.045 274);
+  --muted-foreground: oklch(0.44 0.04 278);
+  --subtle-foreground: oklch(0.49 0.035 280);
 
   /* Lines */
-  --border: oklch(0.918 0.005 286);
-  --border-strong: oklch(0.86 0.008 286);
-  --input: oklch(0.87 0.008 286);
+  --border: oklch(0.912 0.016 290);
+  --border-strong: oklch(0.85 0.024 290);
+  --input: oklch(0.855 0.024 290);
 
-  /* Brand accent — restrained indigo-violet. */
-  --accent: oklch(0.51 0.205 278);
-  --accent-hover: oklch(0.46 0.2 278);
-  --accent-foreground: oklch(0.99 0.005 278);
-  --accent-subtle: oklch(0.958 0.024 280);
-  --accent-subtle-foreground: oklch(0.44 0.19 278);
-  --ring: oklch(0.58 0.19 278);
+  /* Brand accent — electric violet. */
+  --accent: oklch(0.5 0.245 292);
+  --accent-hover: oklch(0.45 0.235 292);
+  --accent-foreground: oklch(0.99 0.01 292);
+  --accent-subtle: oklch(0.955 0.032 300);
+  --accent-subtle-foreground: oklch(0.44 0.22 294);
+  --ring: oklch(0.56 0.25 298);
 
-  /* Status — paired subtle backgrounds and AA-contrast foregrounds. */
-  --success: oklch(0.56 0.13 156);
-  --success-subtle: oklch(0.962 0.03 160);
-  --success-foreground: oklch(0.42 0.1 156);
-  --warning: oklch(0.72 0.15 70);
-  --warning-subtle: oklch(0.968 0.04 85);
-  --warning-foreground: oklch(0.47 0.11 60);
-  --danger: oklch(0.56 0.2 25);
-  --danger-hover: oklch(0.51 0.2 25);
-  --danger-subtle: oklch(0.963 0.022 20);
-  --danger-foreground: oklch(0.48 0.18 25);
-  --info: oklch(0.58 0.14 240);
-  --info-subtle: oklch(0.962 0.022 240);
-  --info-foreground: oklch(0.45 0.12 245);
+  /* Supporting hues — used sparingly for emphasis, gradients and data. */
+  --magenta: oklch(0.57 0.25 338);
+  --magenta-subtle: oklch(0.958 0.032 340);
+  --magenta-foreground: oklch(0.47 0.21 345);
+  --coral: oklch(0.66 0.17 35);
 
-  /* Data-viz categorical slots — validated (dataviz validate_palette.js) on the light surface. */
-  --chart-1: #5048e5;
-  --chart-2: #179a6c;
+  /* Status — paired subtle backgrounds and AA-contrast foregrounds. Info is turquoise. */
+  --success: oklch(0.56 0.14 160);
+  --success-subtle: oklch(0.962 0.035 165);
+  --success-foreground: oklch(0.42 0.1 160);
+  --warning: oklch(0.74 0.16 65);
+  --warning-subtle: oklch(0.968 0.045 80);
+  --warning-foreground: oklch(0.47 0.12 55);
+  --danger: oklch(0.56 0.21 22);
+  --danger-hover: oklch(0.51 0.21 22);
+  --danger-subtle: oklch(0.963 0.026 18);
+  --danger-foreground: oklch(0.48 0.19 22);
+  --info: oklch(0.62 0.12 215);
+  --info-subtle: oklch(0.962 0.03 210);
+  --info-foreground: oklch(0.44 0.1 225);
 
-  /* Elevation — soft, layered, tinted with the neutral hue rather than pure black. */
-  --elevation-color: 285 30% 18%;
+  /* Data-viz categorical slots: violet, turquoise, fuchsia, amber (≥ 3:1 on the surface). */
+  --chart-1: oklch(0.53 0.24 292);
+  --chart-2: oklch(0.6 0.12 205);
+  --chart-3: oklch(0.58 0.24 340);
+  --chart-4: oklch(0.66 0.16 60);
+
+  /* The midnight sidebar sits on this in the light theme too (see `.midnight`). */
+  --sidebar: oklch(0.2 0.05 276);
+
+  /* Gradients — decorative only; text never sits on a gradient without a solid fallback. */
+  --gradient-brand: linear-gradient(135deg, oklch(0.52 0.25 288) 0%, oklch(0.55 0.26 330) 100%);
+  --gradient-brand-soft: linear-gradient(
+    135deg,
+    oklch(0.95 0.04 295) 0%,
+    oklch(0.955 0.035 335) 55%,
+    oklch(0.96 0.03 210) 100%
+  );
+  --gradient-aurora:
+    radial-gradient(55% 60% at 8% 0%, oklch(0.8 0.13 292 / 0.16), transparent 70%),
+    radial-gradient(45% 50% at 92% 0%, oklch(0.85 0.1 205 / 0.14), transparent 70%),
+    radial-gradient(35% 40% at 60% 0%, oklch(0.82 0.12 340 / 0.08), transparent 70%);
+
+  /* Elevation — soft, layered, tinted with midnight rather than pure black. */
+  --elevation-color: 276 40% 20%;
   --elevation-xs: 0 1px 2px hsl(var(--elevation-color) / 0.05);
   --elevation-sm:
-    0 1px 2px hsl(var(--elevation-color) / 0.06), 0 1px 3px hsl(var(--elevation-color) / 0.05);
+    0 1px 2px hsl(var(--elevation-color) / 0.05), 0 2px 6px -1px hsl(var(--elevation-color) / 0.06);
   --elevation-md:
     0 2px 4px -1px hsl(var(--elevation-color) / 0.06),
-    0 6px 16px -4px hsl(var(--elevation-color) / 0.1);
+    0 10px 24px -6px hsl(var(--elevation-color) / 0.12);
   --elevation-lg:
     0 4px 8px -2px hsl(var(--elevation-color) / 0.06),
-    0 20px 40px -8px hsl(var(--elevation-color) / 0.18);
+    0 24px 48px -12px hsl(var(--elevation-color) / 0.22);
+  --glow: 0 8px 24px -8px oklch(0.5 0.245 292 / 0.45);
   --highlight: inset 0 1px 0 oklch(1 0 0 / 0.6);
 }
 
-.dark {
+/*
+ * The dark palette — midnight navy on blue-black. `.midnight` applies the same values to one
+ * region (the sidebar keeps its midnight look in the light theme), so every component inside
+ * it stays legible without class-name changes.
+ */
+.dark,
+.midnight {
   color-scheme: dark;
 
-  --background: oklch(0.158 0.008 285);
-  --surface: oklch(0.192 0.009 285);
-  --surface-sunken: oklch(0.142 0.008 285);
-  --surface-hover: oklch(0.235 0.01 285);
-  --surface-overlay: oklch(0.215 0.01 285);
+  --background: oklch(0.15 0.028 272);
+  --surface: oklch(0.185 0.032 274);
+  --surface-sunken: oklch(0.135 0.026 272);
+  --surface-hover: oklch(0.228 0.04 276);
+  --surface-overlay: oklch(0.205 0.036 276);
 
-  --foreground: oklch(0.955 0.004 286);
-  --muted-foreground: oklch(0.72 0.012 286);
-  --subtle-foreground: oklch(0.64 0.012 286);
+  --foreground: oklch(0.965 0.008 285);
+  --muted-foreground: oklch(0.77 0.028 285);
+  --subtle-foreground: oklch(0.7 0.032 285);
 
-  --border: oklch(0.275 0.01 285);
-  --border-strong: oklch(0.34 0.012 285);
-  --input: oklch(0.34 0.012 285);
+  --border: oklch(0.275 0.038 276);
+  --border-strong: oklch(0.345 0.045 278);
+  --input: oklch(0.355 0.045 278);
 
-  --accent: oklch(0.54 0.2 278);
-  --accent-hover: oklch(0.5 0.2 278);
-  --accent-foreground: oklch(0.99 0.005 278);
-  --accent-subtle: oklch(0.28 0.06 280);
-  --accent-subtle-foreground: oklch(0.83 0.09 280);
-  --ring: oklch(0.68 0.16 278);
+  --accent: oklch(0.53 0.245 293);
+  --accent-hover: oklch(0.49 0.235 293);
+  --accent-foreground: oklch(0.99 0.01 292);
+  --accent-subtle: oklch(0.28 0.085 295);
+  --accent-subtle-foreground: oklch(0.86 0.1 300);
+  --ring: oklch(0.74 0.17 300);
 
-  --success: oklch(0.68 0.14 156);
-  --success-subtle: oklch(0.26 0.045 160);
-  --success-foreground: oklch(0.82 0.12 156);
-  --warning: oklch(0.78 0.14 75);
-  --warning-subtle: oklch(0.28 0.05 75);
-  --warning-foreground: oklch(0.86 0.12 80);
-  --danger: oklch(0.56 0.19 25);
-  --danger-hover: oklch(0.52 0.19 25);
-  --danger-subtle: oklch(0.27 0.06 20);
-  --danger-foreground: oklch(0.8 0.12 22);
-  --info: oklch(0.68 0.13 240);
-  --info-subtle: oklch(0.26 0.045 240);
-  --info-foreground: oklch(0.82 0.09 240);
+  --magenta: oklch(0.68 0.24 340);
+  --magenta-subtle: oklch(0.28 0.085 340);
+  --magenta-foreground: oklch(0.86 0.11 345);
+  --coral: oklch(0.74 0.15 38);
 
-  --chart-1: #7a73f0;
-  --chart-2: #199e70;
+  --success: oklch(0.7 0.15 160);
+  --success-subtle: oklch(0.26 0.055 162);
+  --success-foreground: oklch(0.85 0.12 160);
+  --warning: oklch(0.8 0.15 75);
+  --warning-subtle: oklch(0.285 0.06 70);
+  --warning-foreground: oklch(0.88 0.12 82);
+  --danger: oklch(0.57 0.2 22);
+  --danger-hover: oklch(0.53 0.2 22);
+  --danger-subtle: oklch(0.28 0.075 20);
+  --danger-foreground: oklch(0.84 0.11 22);
+  --info: oklch(0.75 0.12 210);
+  --info-subtle: oklch(0.27 0.055 215);
+  --info-foreground: oklch(0.87 0.09 205);
 
-  --elevation-color: 285 40% 3%;
+  --chart-1: oklch(0.66 0.2 292);
+  --chart-2: oklch(0.74 0.12 205);
+  --chart-3: oklch(0.68 0.22 340);
+  --chart-4: oklch(0.78 0.14 68);
+
+  --gradient-brand: linear-gradient(135deg, oklch(0.52 0.25 288) 0%, oklch(0.55 0.26 330) 100%);
+  --gradient-brand-soft: linear-gradient(
+    135deg,
+    oklch(0.27 0.08 292) 0%,
+    oklch(0.25 0.07 330) 55%,
+    oklch(0.24 0.05 215) 100%
+  );
+  --gradient-aurora:
+    radial-gradient(55% 60% at 8% 0%, oklch(0.45 0.18 292 / 0.22), transparent 70%),
+    radial-gradient(45% 50% at 92% 0%, oklch(0.5 0.12 210 / 0.16), transparent 70%),
+    radial-gradient(35% 40% at 60% 0%, oklch(0.5 0.2 340 / 0.1), transparent 70%);
+
+  --elevation-color: 272 50% 3%;
   --elevation-xs: 0 1px 2px hsl(var(--elevation-color) / 0.4);
   --elevation-sm: 0 1px 3px hsl(var(--elevation-color) / 0.45);
-  --elevation-md: 0 6px 16px -4px hsl(var(--elevation-color) / 0.55);
-  --elevation-lg: 0 24px 48px -12px hsl(var(--elevation-color) / 0.7);
-  --highlight: inset 0 1px 0 oklch(1 0 0 / 0.05);
+  --elevation-md: 0 8px 20px -6px hsl(var(--elevation-color) / 0.6);
+  --elevation-lg: 0 28px 56px -14px hsl(var(--elevation-color) / 0.75);
+  --glow: 0 8px 28px -8px oklch(0.6 0.24 295 / 0.55);
+  --highlight: inset 0 1px 0 oklch(1 0 0 / 0.07);
+}
+
+/* In the dark theme the sidebar sinks below the page instead of contrasting with it. */
+.dark {
+  --sidebar: oklch(0.125 0.026 272);
 }
 
 /* Map semantic variables onto Tailwind utilities (bg-surface, text-muted-foreground, …). */
@@ -153,14 +209,33 @@
   --color-info: var(--info);
   --color-info-subtle: var(--info-subtle);
   --color-info-foreground: var(--info-foreground);
+  --color-magenta: var(--magenta);
+  --color-magenta-subtle: var(--magenta-subtle);
+  --color-magenta-foreground: var(--magenta-foreground);
+  --color-coral: var(--coral);
+  --color-sidebar: var(--sidebar);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
 
   --shadow-xs: var(--elevation-xs);
   --shadow-sm: var(--elevation-sm);
   --shadow-md: var(--elevation-md);
   --shadow-lg: var(--elevation-lg);
+  --shadow-glow: var(--glow);
+}
+
+/* Gradient fills as utilities (bg-brand-gradient, bg-aurora…), so components never hard-code them. */
+@utility bg-brand-gradient {
+  background-image: var(--gradient-brand);
+}
+@utility bg-brand-gradient-soft {
+  background-image: var(--gradient-brand-soft);
+}
+@utility bg-aurora {
+  background-image: var(--gradient-aurora);
 }
 
 /* Static scales: typography, radii, motion. Spacing uses Tailwind's 4px base unit. */
@@ -189,8 +264,9 @@
   --radius-xs: 0.25rem;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.875rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
 
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);

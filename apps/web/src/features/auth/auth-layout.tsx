@@ -21,7 +21,7 @@ const HIGHLIGHTS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Timer,
     title: 'Built for SLAs',
-    body: 'Tickets, conversations and response targets arrive in the next phases.',
+    body: 'Tickets, conversations, due dates and breach tracking for every response target.',
   },
 ];
 
@@ -103,23 +103,32 @@ export function AuthLayout({
         </motion.div>
       </main>
 
+      {/* The midnight brand panel, in both themes (`midnight` re-themes its contents). */}
       <aside
         aria-label="About PulseDesk"
-        className="relative hidden overflow-hidden border-l border-border bg-surface-sunken lg:flex lg:flex-col lg:justify-center lg:px-14"
+        className="midnight relative hidden overflow-hidden bg-sidebar text-foreground lg:flex lg:flex-col lg:justify-center lg:px-14"
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-40 -right-40 size-[28rem] rounded-full bg-accent/10 blur-3xl"
+          className="pointer-events-none absolute -top-40 -right-40 size-[30rem] rounded-full bg-accent/35 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-48 -left-24 size-[26rem] rounded-full bg-magenta/20 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/3 right-10 size-56 rounded-full bg-info/15 blur-3xl"
         />
         <div className="relative max-w-md">
           <p className="text-sm font-medium text-accent-subtle-foreground">PulseDesk</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
+          <h2 className="mt-2 text-[2.125rem] leading-tight font-semibold tracking-tight text-balance">
             Calm, fast customer support for growing teams.
           </h2>
           <ul className="mt-10 grid gap-6">
             {HIGHLIGHTS.map(({ icon: Icon, title, body }) => (
               <li key={title} className="flex gap-4">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-accent-subtle-foreground shadow-xs">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border-strong bg-surface/70 text-accent-subtle-foreground shadow-sm backdrop-blur">
                   <Icon className="size-4" aria-hidden="true" />
                 </span>
                 <span>

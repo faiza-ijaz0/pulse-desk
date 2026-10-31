@@ -8,7 +8,14 @@ export function BrandMark({ className }: { className?: string }) {
   // and leave the others unfilled, so each instance gets its own.
   const gradientId = useId();
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true" className={cn('size-7 shrink-0', className)}>
+    <svg
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+      className={cn(
+        'size-7 shrink-0 drop-shadow-[0_4px_12px_oklch(0.55_0.25_300/0.45)]',
+        className,
+      )}
+    >
       <defs>
         <linearGradient
           id={gradientId}
@@ -18,17 +25,18 @@ export function BrandMark({ className }: { className?: string }) {
           y2="32"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0" stopColor="oklch(0.58 0.2 282)" />
-          <stop offset="1" stopColor="oklch(0.47 0.21 274)" />
+          <stop offset="0" stopColor="oklch(0.55 0.25 288)" />
+          <stop offset="0.6" stopColor="oklch(0.53 0.26 312)" />
+          <stop offset="1" stopColor="oklch(0.58 0.25 340)" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="8" fill={`url(#${gradientId})`} />
+      <rect width="32" height="32" rx="9" fill={`url(#${gradientId})`} />
       <rect
         x="0.5"
         y="0.5"
         width="31"
         height="31"
-        rx="7.5"
+        rx="8.5"
         fill="none"
         stroke="white"
         strokeOpacity="0.18"

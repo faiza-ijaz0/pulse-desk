@@ -7,10 +7,10 @@ function StateIcon({ icon: Icon, tone }: { icon: LucideIcon; tone: 'neutral' | '
   return (
     <div
       className={cn(
-        'mb-4 flex size-11 items-center justify-center rounded-xl border shadow-xs',
+        'mb-4 flex size-12 items-center justify-center rounded-2xl border shadow-sm',
         tone === 'danger'
           ? 'border-danger/20 bg-danger-subtle text-danger-foreground'
-          : 'border-border bg-surface text-muted-foreground',
+          : 'border-accent/15 bg-brand-gradient-soft text-accent-subtle-foreground',
       )}
     >
       <Icon className="size-5" aria-hidden="true" />
@@ -35,7 +35,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface-sunken/50 px-6 py-12 text-center',
+        'flex flex-col items-center justify-center rounded-xl border border-dashed border-border-strong bg-surface-sunken/50 px-6 py-14 text-center',
         className,
       )}
     >
@@ -67,7 +67,7 @@ export function ErrorState({
     <div
       role="alert"
       className={cn(
-        'flex flex-col items-center justify-center rounded-lg border border-border bg-surface px-6 py-12 text-center',
+        'flex flex-col items-center justify-center rounded-xl border border-border bg-surface px-6 py-14 text-center shadow-[var(--highlight),var(--elevation-sm)]',
         className,
       )}
     >
@@ -96,13 +96,17 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* A short brand-gradient rule anchors every page title (decorative). */}
+          <span aria-hidden="true" className="h-6 w-1 rounded-full bg-brand-gradient" />
+          <h1 className="text-[1.625rem] leading-tight font-semibold tracking-tight">{title}</h1>
           {meta}
         </div>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="mt-1.5 pl-3.5 text-sm text-muted-foreground">{description}</p>
+        )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>

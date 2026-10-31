@@ -3,16 +3,17 @@ import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
 
 export const badgeVariants = cva(
-  'inline-flex h-5 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset',
+  'inline-flex h-5.5 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium whitespace-nowrap ring-1 ring-inset',
   {
     variants: {
       tone: {
-        neutral: 'bg-surface-sunken text-muted-foreground ring-border',
-        accent: 'bg-accent-subtle text-accent-subtle-foreground ring-accent/15',
-        success: 'bg-success-subtle text-success-foreground ring-success/20',
-        warning: 'bg-warning-subtle text-warning-foreground ring-warning/25',
-        danger: 'bg-danger-subtle text-danger-foreground ring-danger/20',
-        info: 'bg-info-subtle text-info-foreground ring-info/20',
+        neutral: 'bg-surface-sunken text-muted-foreground ring-border-strong/70',
+        accent: 'bg-accent-subtle text-accent-subtle-foreground ring-accent/20',
+        success: 'bg-success-subtle text-success-foreground ring-success/25',
+        warning: 'bg-warning-subtle text-warning-foreground ring-warning/35',
+        danger: 'bg-danger-subtle text-danger-foreground ring-danger/25',
+        info: 'bg-info-subtle text-info-foreground ring-info/25',
+        magenta: 'bg-magenta-subtle text-magenta-foreground ring-magenta/25',
       },
     },
     defaultVariants: { tone: 'neutral' },
@@ -26,6 +27,7 @@ const dotColors = {
   warning: 'bg-warning',
   danger: 'bg-danger',
   info: 'bg-info',
+  magenta: 'bg-magenta',
 } as const;
 
 export type BadgeTone = NonNullable<VariantProps<typeof badgeVariants>['tone']>;

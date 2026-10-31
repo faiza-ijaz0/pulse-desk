@@ -6,7 +6,7 @@ import { Spinner } from './spinner';
 
 export const buttonVariants = cva(
   [
-    'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap select-none',
+    'relative inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap select-none',
     'transition-[background-color,border-color,color,box-shadow,scale] duration-150 ease-out',
     'active:not-disabled:scale-[0.98]',
     'disabled:pointer-events-none disabled:opacity-50 aria-busy:cursor-progress',
@@ -15,13 +15,14 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Solid violet (AA for its label in both states); the glow is the only flourish.
         primary:
-          'bg-accent text-accent-foreground shadow-[var(--highlight),var(--elevation-xs)] hover:bg-accent-hover',
+          'bg-accent text-accent-foreground shadow-[var(--highlight),var(--elevation-sm)] hover:bg-accent-hover hover:shadow-[var(--highlight),var(--glow)]',
         secondary:
-          'border border-border-strong bg-surface text-foreground shadow-xs hover:border-input hover:bg-surface-hover',
+          'border border-border-strong bg-surface text-foreground shadow-xs hover:border-accent/35 hover:bg-surface-hover',
         ghost: 'text-muted-foreground hover:bg-surface-hover hover:text-foreground',
         danger:
-          'bg-danger text-white shadow-[var(--highlight),var(--elevation-xs)] hover:bg-danger-hover',
+          'bg-danger text-white shadow-[var(--highlight),var(--elevation-sm)] hover:bg-danger-hover',
         link: 'h-auto px-0 text-accent-subtle-foreground underline-offset-4 hover:underline',
       },
       size: {

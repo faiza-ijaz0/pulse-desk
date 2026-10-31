@@ -13,9 +13,20 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { VolumePoint } from './sample-data';
 
+// `color` is the solid swatch (legend, tooltip); `bar` adds a gentle lift towards the top.
 const SERIES = [
-  { key: 'created', label: 'Created', color: 'bg-chart-1' },
-  { key: 'solved', label: 'Solved', color: 'bg-chart-2' },
+  {
+    key: 'created',
+    label: 'Created',
+    color: 'bg-chart-1',
+    bar: 'bg-linear-to-t from-chart-1 to-chart-1/75',
+  },
+  {
+    key: 'solved',
+    label: 'Solved',
+    color: 'bg-chart-2',
+    bar: 'bg-linear-to-t from-chart-2 to-chart-2/75',
+  },
 ] as const;
 
 function niceMax(value: number): number {
@@ -38,7 +49,7 @@ function ViewToggle({
     <div
       role="group"
       aria-label="Display as"
-      className="inline-flex rounded-md border border-border bg-surface-sunken p-0.5"
+      className="inline-flex rounded-lg border border-border bg-surface-sunken p-0.5"
     >
       {options.map(({ value, label, icon: Icon }) => (
         <button
@@ -47,7 +58,7 @@ function ViewToggle({
           aria-pressed={view === value}
           onClick={() => onChange(value)}
           className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-[5px] px-2 text-xs font-medium transition-colors',
+            'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors',
             view === value
               ? 'bg-surface text-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground',
@@ -161,8 +172,8 @@ export function VolumeChart({ data }: { data: VolumePoint[] }) {
                         <div
                           key={s.key}
                           className={cn(
-                            'w-full max-w-6 rounded-t-[4px] transition-opacity group-hover:opacity-90',
-                            s.color,
+                            'w-full max-w-6 rounded-t-md transition-opacity group-hover:opacity-90',
+                            s.bar,
                           )}
                           style={{ height: `${(d[s.key] / max) * 100}%` }}
                         />

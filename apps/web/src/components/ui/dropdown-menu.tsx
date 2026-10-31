@@ -10,10 +10,10 @@ export const DropdownMenuRadioGroup = Menu.RadioGroup;
 export const DropdownMenuSub = Menu.Sub;
 
 const surface =
-  'z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-surface-overlay p-1 text-foreground shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in';
+  'z-50 min-w-48 overflow-hidden rounded-xl border border-border bg-surface-overlay p-1.5 text-foreground shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in';
 
 const item = cn(
-  'relative flex h-8 cursor-default items-center gap-2 rounded-md px-2 text-sm outline-none select-none',
+  'relative flex h-8 cursor-default items-center gap-2 rounded-lg px-2 text-sm outline-none select-none',
   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-surface-hover',
   '[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground',
 );

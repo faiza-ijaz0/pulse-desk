@@ -50,6 +50,7 @@ export function Separator({
 const AVATAR_TONES = [
   'bg-accent-subtle text-accent-subtle-foreground',
   'bg-info-subtle text-info-foreground',
+  'bg-magenta-subtle text-magenta-foreground',
   'bg-success-subtle text-success-foreground',
   'bg-warning-subtle text-warning-foreground',
 ] as const;
@@ -122,7 +123,7 @@ export function Alert({
   return (
     <div
       role={tone === 'danger' ? 'alert' : 'status'}
-      className={cn('flex gap-3 rounded-lg border px-4 py-3 text-sm', classes, className)}
+      className={cn('flex gap-3 rounded-xl border px-4 py-3 text-sm', classes, className)}
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="grid min-w-0 flex-1 gap-0.5">

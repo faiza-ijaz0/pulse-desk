@@ -1,9 +1,11 @@
 import { motion, type Variants } from 'framer-motion';
+import { ArrowRight, Inbox, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useLocation } from 'react-router';
-import { PageHeader } from '@/components/common/states';
+import { Link, useLocation } from 'react-router';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/misc';
+import { useActiveSession } from '@/features/auth/session';
 import { AtRiskCard, RecentTicketsCard, StatCard, WorkloadCard } from './dashboard-widgets';
 import {
   SAMPLE_AT_RISK,
@@ -34,15 +36,68 @@ function welcomeFrom(state: unknown): string | undefined {
   return typeof state.welcome === 'string' ? state.welcome : undefined;
 }
 
+/**
+ * The top of the dashboard: who and where you are, and shortcuts into the parts of PulseDesk
+ * that work with real data. The metrics below it are a labelled preview.
+ */
+function Hero() {
+  const { user, activeOrganization } = useActiveSession();
+  const firstName = user.name.split(/\s+/)[0] ?? user.name;
+  return (
+    <section
+      aria-labelledby="dashboard-title"
+      className="relative mb-6 overflow-hidden rounded-2xl border border-accent/15 bg-brand-gradient-soft p-6 shadow-[var(--highlight),var(--elevation-sm)] md:p-8"
+    >
+      {/* Soft color blooms (decorative). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-20 -right-10 size-72 rounded-full bg-magenta/15 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-info/15 blur-3xl"
+      />
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-accent-subtle-foreground">
+            Welcome back, {firstName}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2.5">
+            <h1 id="dashboard-title" className="text-3xl font-semibold tracking-tight">
+              Support overview
+            </h1>
+            <Badge tone="accent">Sample data</Badge>
+          </div>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            {activeOrganization.name} · Last 7 days · Sample data. Your tickets, customers and SLA
+            states are live in the inbox.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link to="/tickets">
+              <Inbox aria-hidden="true" />
+              Open the inbox
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link to="/customers">
+              <Users aria-hidden="true" />
+              Customers
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function DashboardPage() {
   const welcome = welcomeFrom(useLocation().state);
   return (
     <>
-      <PageHeader
-        title="Support overview"
-        meta={<Badge tone="accent">Sample data</Badge>}
-        description="Last 7 days · Sample data"
-      />
+      <Hero />
 
       {welcome && (
         <Alert tone="success" title={`${welcome} is ready`} className="mb-4">
@@ -51,8 +106,9 @@ export function DashboardPage() {
       )}
 
       <Alert tone="info" title="This dashboard is a design preview" className="mb-6">
-        Every number on this page is static sample data, not your organization’s activity. Live
-        metrics replace it when the ticket inbox (Phase 4) and analytics (Phase 6) are built.
+        Every number on this page is static sample data, not your organization’s activity. Tickets,
+        customers and SLA states elsewhere in PulseDesk are real; live analytics replace this
+        preview in Phase 6.
       </Alert>
 
       <motion.div

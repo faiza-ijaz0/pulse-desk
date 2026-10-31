@@ -26,7 +26,7 @@ function ticketSummary(customer: Customer): string {
 function CustomerRow({ customer }: { customer: Customer }) {
   return (
     // The name link stretches over the row, like ticket rows in the inbox.
-    <li className="relative flex items-center gap-3 px-4 py-3 transition-colors focus-within:bg-surface-hover/60 hover:bg-surface-hover/60 sm:px-5">
+    <li className="relative flex items-center gap-3 px-4 py-3.5 transition-colors focus-within:bg-accent-subtle/45 hover:bg-accent-subtle/45 sm:px-5">
       <Avatar name={displayName(customer)} className="ring-0" />
       <div className="min-w-0 flex-1">
         <Link
@@ -138,7 +138,7 @@ export function CustomersPage() {
   return (
     <>
       <PageHeader title="Customers" description="Everyone who has contacted your organization." />
-      <Card className="mb-4 p-4">
+      <Card className="mb-4 bg-surface/85 p-4 backdrop-blur-md">
         <div className="relative max-w-md">
           <Search
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle-foreground"

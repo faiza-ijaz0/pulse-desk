@@ -74,7 +74,12 @@ const SWATCHES: { group: string; tokens: string[] }[] = [
     group: 'Accent',
     tokens: ['accent', 'accent-hover', 'accent-subtle', 'accent-subtle-foreground', 'ring'],
   },
-  { group: 'Status', tokens: ['success', 'warning', 'danger', 'info', 'chart-1', 'chart-2'] },
+  {
+    group: 'Brand',
+    tokens: ['magenta', 'coral', 'sidebar', 'gradient-brand', 'gradient-brand-soft'],
+  },
+  { group: 'Status', tokens: ['success', 'warning', 'danger', 'info'] },
+  { group: 'Data', tokens: ['chart-1', 'chart-2', 'chart-3', 'chart-4'] },
 ];
 
 const TYPE_SCALE = [
@@ -115,7 +120,7 @@ export function DesignSystemPage() {
                 {tokens.map((token) => (
                   <div
                     key={token}
-                    className="overflow-hidden rounded-md border border-border bg-surface"
+                    className="overflow-hidden rounded-lg border border-border bg-surface"
                   >
                     <div
                       className="h-10 border-b border-border"
@@ -235,6 +240,7 @@ export function DesignSystemPage() {
             <Badge tone="warning">Warning</Badge>
             <Badge tone="danger">Danger</Badge>
             <Badge tone="info">Info</Badge>
+            <Badge tone="magenta">Magenta</Badge>
           </div>
           <div className="flex flex-wrap gap-2">
             {TICKET_STATUSES.map((status) => (

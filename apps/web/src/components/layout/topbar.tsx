@@ -114,7 +114,12 @@ export function Topbar({
   const { activeOrganization } = useActiveSession();
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/70 md:px-6">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border/80 bg-background/85 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/65 md:px-6">
+      {/* A hairline of brand color along the bottom edge (decorative). */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-[linear-gradient(90deg,transparent,var(--accent)_30%,var(--magenta)_70%,transparent)] opacity-35"
+      />
       <Button
         variant="ghost"
         size="icon-sm"
@@ -144,7 +149,7 @@ export function Topbar({
         <button
           type="button"
           onClick={onOpenPalette}
-          className="hidden h-8 w-64 items-center gap-2 rounded-md border border-border bg-surface px-2.5 text-sm text-subtle-foreground shadow-xs transition-colors hover:border-border-strong hover:text-muted-foreground md:flex lg:w-72"
+          className="hidden h-9 w-64 items-center gap-2 rounded-lg border border-border bg-surface/80 px-3 text-sm text-subtle-foreground shadow-xs transition-[border-color,color,box-shadow] hover:border-accent/35 hover:text-muted-foreground hover:shadow-sm md:flex lg:w-80"
           aria-label="Open command menu"
           aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
         >

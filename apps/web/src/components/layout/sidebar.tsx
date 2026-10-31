@@ -37,19 +37,25 @@ function NavEntry({
           // merges className by concatenation and would stringify a function. Active styles
           // key off the aria-current="page" that NavLink sets.
           className={cn(
-            'group relative flex items-center gap-2.5 rounded-md text-sm font-medium text-muted-foreground transition-colors',
+            'group relative flex items-center gap-2.5 rounded-lg text-sm font-medium text-muted-foreground transition-colors',
             'hover:text-foreground not-aria-[current=page]:hover:bg-surface-hover aria-[current=page]:text-foreground',
-            collapsed ? 'size-9 justify-center' : 'h-8 px-2.5',
+            collapsed ? 'size-9 justify-center' : 'h-9 px-2.5',
           )}
         >
           {({ isActive }) => (
             <>
               {isActive && (
+                // The active pill glides between items; a short gradient edge marks it.
                 <motion.span
                   layoutId={indicatorId}
-                  className="absolute inset-0 rounded-md border border-border bg-surface shadow-xs"
+                  className="absolute inset-0 rounded-lg bg-accent/20 ring-1 ring-accent/35 ring-inset"
                   transition={{ type: 'spring', stiffness: 520, damping: 42 }}
-                />
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 bottom-1.5 left-0 w-0.75 rounded-full bg-brand-gradient"
+                  />
+                </motion.span>
               )}
               <Icon
                 className={cn(
@@ -64,8 +70,13 @@ function NavEntry({
                 <>
                   <span className="relative flex-1 truncate">{item.label}</span>
                   {item.status === 'planned' && (
-                    <span className="relative text-2xs font-medium text-subtle-foreground">
+                    <span className="relative rounded-full border border-border-strong px-1.5 text-2xs font-medium text-subtle-foreground">
                       Soon
+                    </span>
+                  )}
+                  {item.status === 'preview' && (
+                    <span className="relative rounded-full border border-border-strong px-1.5 text-2xs font-medium text-subtle-foreground">
+                      Preview
                     </span>
                   )}
                 </>
@@ -88,7 +99,7 @@ export function SidebarNav({
   onNavigate?: () => void;
 }) {
   return (
-    <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-2">
+    <nav aria-label="Main" className="relative flex-1 overflow-y-auto px-3 py-2">
       {NAV_GROUPS.map((group) => (
         <div key={group.label} className="mb-4 last:mb-0">
           {collapsed ? (
@@ -134,22 +145,33 @@ export function Sidebar({
       id="app-sidebar"
       aria-label="Sidebar"
       className={cn(
-        'sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-border bg-surface-sunken/60 md:flex',
+        // `midnight` re-themes everything inside to the dark palette, in both app themes.
+        'midnight sticky top-0 hidden h-dvh shrink-0 flex-col overflow-hidden border-r border-white/8 bg-sidebar text-foreground md:flex',
         'transition-[width] duration-200 ease-out-quint',
         collapsed ? 'w-16' : 'w-62',
       )}
     >
-      <div className={cn('flex h-14 items-center gap-2.5', collapsed ? 'justify-center' : 'px-5')}>
+      {/* A faint violet bloom behind the brand (decorative). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-24 -left-16 size-64 rounded-full bg-accent/25 blur-3xl"
+      />
+      <div
+        className={cn(
+          'relative flex h-16 items-center gap-2.5',
+          collapsed ? 'justify-center' : 'px-5',
+        )}
+      >
         <BrandMark />
         {!collapsed && <BrandWordmark />}
       </div>
-      <div className={cn('pb-2', collapsed ? 'flex justify-center' : 'px-3')}>
+      <div className={cn('relative pb-3', collapsed ? 'flex justify-center' : 'px-3')}>
         <WorkspaceSwitcher collapsed={collapsed} />
       </div>
       <SidebarNav collapsed={collapsed} indicatorId="nav-active-desktop" />
       <div
         className={cn(
-          'flex items-center gap-1 border-t border-border py-2',
+          'relative flex items-center gap-1 border-t border-border py-2',
           collapsed ? 'flex-col px-2' : 'justify-between px-3',
         )}
       >

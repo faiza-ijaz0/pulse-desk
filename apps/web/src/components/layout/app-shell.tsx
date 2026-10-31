@@ -71,13 +71,18 @@ export function AppShell() {
           onOpenPalette={() => setPaletteOpen(true)}
           onShowShortcuts={() => setShortcutsOpen(true)}
         />
-        <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
+        <main id="main" tabIndex={-1} className="relative flex-1 focus:outline-none">
+          {/* A soft violet/turquoise aurora behind the top of every page (decorative). */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-[26rem] bg-aurora"
+          />
           <motion.div
             key={pathname}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-6 lg:px-8 lg:py-8"
+            className="relative mx-auto w-full max-w-[1400px] px-4 py-6 md:px-6 lg:px-8 lg:py-8"
           >
             <Outlet />
           </motion.div>

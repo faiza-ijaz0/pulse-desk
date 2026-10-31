@@ -8,7 +8,7 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 
 export const overlayStyles =
-  'fixed inset-0 z-50 bg-[oklch(0.18_0.02_285/0.42)] backdrop-blur-[2px] data-[state=closed]:animate-overlay-out data-[state=open]:animate-overlay-in';
+  'fixed inset-0 z-50 bg-[oklch(0.16_0.045_276/0.5)] backdrop-blur-sm data-[state=closed]:animate-overlay-out data-[state=open]:animate-overlay-in';
 
 export function DialogContent({
   className,
@@ -22,7 +22,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           'fixed top-[12vh] left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 gap-4',
-          'rounded-xl border border-border bg-surface-overlay p-6 shadow-lg',
+          'rounded-2xl border border-border bg-surface-overlay p-6 shadow-lg',
           'focus:outline-none data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in',
           className,
         )}

@@ -1,4 +1,15 @@
-import { ArrowDownRight, ArrowUpRight, Clock, UserRoundX } from 'lucide-react';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CircleCheckBig,
+  Clock,
+  Inbox,
+  ShieldCheck,
+  Timer,
+  UserRoundX,
+  type LucideIcon,
+} from 'lucide-react';
+import { useId } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/misc';
@@ -14,10 +25,41 @@ import { TicketPriorityLabel, TicketStatusBadge } from '@/features/tickets/ticke
 import { cn } from '@/lib/utils';
 import type { AgentLoad, AtRiskTicket, SampleTicket, StatTile } from './sample-data';
 
-function Sparkline({ points }: { points: number[] }) {
-  const width = 88;
-  const height = 32;
-  const pad = 5; // room for the 8px end-dot and its ring
+/** Each metric's hue (a chart token) and icon, so the four tiles read apart at a glance. */
+const STAT_LOOK: Record<string, { icon: LucideIcon; text: string; chip: string }> = {
+  open: {
+    icon: Inbox,
+    text: 'text-chart-1',
+    chip: 'bg-accent-subtle text-accent-subtle-foreground',
+  },
+  'first-response': {
+    icon: Timer,
+    text: 'text-chart-2',
+    chip: 'bg-info-subtle text-info-foreground',
+  },
+  sla: {
+    icon: ShieldCheck,
+    text: 'text-chart-3',
+    chip: 'bg-magenta-subtle text-magenta-foreground',
+  },
+  resolved: {
+    icon: CircleCheckBig,
+    text: 'text-chart-4',
+    chip: 'bg-warning-subtle text-warning-foreground',
+  },
+};
+const DEFAULT_LOOK = {
+  icon: Inbox,
+  text: 'text-chart-1',
+  chip: 'bg-accent-subtle text-accent-subtle-foreground',
+};
+
+/** A small area chart in the metric's hue (`currentColor`), fading out towards the baseline. */
+function Sparkline({ points, className }: { points: number[]; className: string }) {
+  const gradientId = useId();
+  const width = 112;
+  const height = 40;
+  const pad = 4;
   const min = Math.min(...points);
   const range = Math.max(...points) - min || 1;
   const coords = points.map((p, i) => [
@@ -25,6 +67,8 @@ function Sparkline({ points }: { points: number[] }) {
     pad + (1 - (p - min) / range) * (height - pad * 2),
   ]);
   const last = coords.at(-1) ?? [0, 0];
+  const line = coords.map(([x, y]) => `${x},${y}`).join(' ');
+  const area = `${pad},${height} ${line} ${width - pad},${height}`;
 
   return (
     <svg
@@ -32,12 +76,19 @@ function Sparkline({ points }: { points: number[] }) {
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       aria-hidden="true"
-      className="shrink-0 overflow-visible"
+      className={cn('shrink-0 overflow-visible', className)}
     >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#${gradientId})`} />
       <polyline
-        points={coords.map(([x, y]) => `${x},${y}`).join(' ')}
+        points={line}
         fill="none"
-        className="stroke-border-strong"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -45,8 +96,9 @@ function Sparkline({ points }: { points: number[] }) {
       <circle
         cx={last[0]}
         cy={last[1]}
-        r="4"
-        className="fill-accent stroke-surface"
+        r="3.5"
+        fill="currentColor"
+        className="stroke-surface"
         strokeWidth="2"
       />
     </svg>
@@ -56,14 +108,23 @@ function Sparkline({ points }: { points: number[] }) {
 export function StatCard({ stat }: { stat: StatTile }) {
   const { delta } = stat;
   const DeltaIcon = delta.direction === 'up' ? ArrowUpRight : ArrowDownRight;
+  const look = STAT_LOOK[stat.id] ?? DEFAULT_LOOK;
+  const Icon = look.icon;
   return (
-    <Card className="p-5">
-      <h2 className="text-sm font-medium text-muted-foreground">{stat.label}</h2>
-      <div className="mt-2 flex items-end justify-between gap-3">
-        <p className="text-3xl font-semibold tracking-tight">{stat.value}</p>
-        <Sparkline points={stat.trend} />
+    <Card className="group relative overflow-hidden p-5 transition-[box-shadow,translate] duration-200 hover:-translate-y-0.5 hover:shadow-[var(--highlight),var(--elevation-md)]">
+      <div className="flex items-center gap-2.5">
+        <span className={cn('flex size-8 items-center justify-center rounded-lg', look.chip)}>
+          <Icon className="size-4" aria-hidden="true" />
+        </span>
+        <h2 className="text-sm font-medium text-muted-foreground">{stat.label}</h2>
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <p className="text-[2rem] leading-none font-semibold tracking-tight tabular-nums">
+          {stat.value}
+        </p>
+        <Sparkline points={stat.trend} className={look.text} />
+      </div>
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
         <span
           className={cn(
             'inline-flex items-center gap-0.5 font-medium',
@@ -104,7 +165,7 @@ export function AtRiskCard({ tickets }: { tickets: AtRiskTicket[] }) {
           {tickets.map((t) => (
             <li
               key={t.number}
-              className="rounded-md border border-border bg-surface-sunken/50 px-3 py-2.5"
+              className="rounded-lg border border-border bg-surface-sunken/50 px-3 py-2.5 transition-colors hover:border-accent/25"
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="min-w-0 text-sm leading-snug font-medium">
@@ -269,7 +330,7 @@ export function WorkloadCard({ agents }: { agents: AgentLoad[] }) {
                 <div
                   className={cn(
                     'h-full rounded-full transition-[width] duration-500 ease-out-quint',
-                    high ? 'bg-warning' : 'bg-accent',
+                    high ? 'bg-warning' : 'bg-brand-gradient',
                   )}
                   style={{ width: `${Math.min(100, ratio * 100)}%` }}
                 />
