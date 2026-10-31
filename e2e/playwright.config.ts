@@ -75,7 +75,10 @@ export default defineConfig({
         // A throwaway secret for this local test server only; never used anywhere else.
         SESSION_SECRET: 'e2e-only-session-secret-not-used-anywhere-else',
         PROXY_SHARED_SECRET,
-        // Every browser in the suite shares one IP; keep brute-force limits on but roomy.
+        // Every browser in the suite reaches the API through the preview proxy, so they all
+        // share one IP and one rate-limit budget. Keep both limits on but roomy: the global
+        // default (300/min) is outrun by the parallel suite, and the auth one by its sign-ups.
+        RATE_LIMIT_GLOBAL_PER_MINUTE: '3000',
         RATE_LIMIT_AUTH_PER_15_MINUTES: '200',
       },
     },
