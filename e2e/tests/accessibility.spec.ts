@@ -8,6 +8,7 @@ const PAGES = [
   { path: '/tickets/1', heading: 'Ticket not found' },
   { path: '/customers', heading: 'Customers' },
   { path: '/team', heading: 'Agents & teams' },
+  { path: '/sla', heading: 'SLA policies' },
   { path: '/settings', heading: 'Settings' },
   { path: '/analytics', heading: 'Analytics isn’t built yet' },
 ];

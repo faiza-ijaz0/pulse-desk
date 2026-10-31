@@ -16,6 +16,8 @@ async function createTicket(page: Page, email: string, subject: string) {
 
 // Its own organization (as owner), so its data can't disturb tests sharing the suite user.
 test('customers, teams, tags, settings and search work together', async ({ browser }) => {
+  // A long journey across six pages: under a full parallel run it outgrew the 30 s default.
+  test.slow();
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const page = await context.newPage();
   await page.emulateMedia({ reducedMotion: 'reduce' });
