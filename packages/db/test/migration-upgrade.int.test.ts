@@ -18,13 +18,16 @@ loadWorkspaceEnv();
  * run them rather than risk leaving objects behind.
  */
 const UPGRADE = '20261027000000_sla_breach_markers_and_auto_close';
+const INVITATIONS_UPGRADE = '20261031000000_invitation_lifecycle';
 const MIGRATIONS = new URL('../prisma/migrations/', import.meta.url);
 const migrationSql = (name: string) =>
   assertSafeInTransaction(name, readFileSync(new URL(`${name}/migration.sql`, MIGRATIONS), 'utf8'));
-const EARLIER = readdirSync(MIGRATIONS, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory() && entry.name < UPGRADE)
-  .map((entry) => entry.name)
-  .sort();
+const earlierThan = (upgrade: string) =>
+  readdirSync(MIGRATIONS, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name < upgrade)
+    .map((entry) => entry.name)
+    .sort();
+const EARLIER = earlierThan(UPGRADE);
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 const NEW_ORG = '55555555-5555-4555-8555-555555555555';
@@ -45,16 +48,20 @@ afterAll(async () => {
   await client.end();
 });
 
-/** Runs `fn` against a fresh schema at the state before UPGRADE, then rolls everything back. */
-async function inThrowawaySchema(fn: (schema: string) => Promise<void>): Promise<void> {
+/** Runs `fn` against a fresh schema at the state before `upgrade`, then rolls everything back. */
+async function inThrowawaySchema(
+  fn: (schema: string) => Promise<void>,
+  upgrade: string = UPGRADE,
+): Promise<void> {
+  const earlier = earlierThan(upgrade);
   // Check every migration before the transaction opens, so a refusal leaves nothing to undo.
-  for (const name of [...EARLIER, UPGRADE]) migrationSql(name);
+  for (const name of [...earlier, upgrade]) migrationSql(name);
   const schema = `migration_upgrade_${randomUUID().replaceAll('-', '')}`;
   await client.query('BEGIN');
   try {
     await client.query(`CREATE SCHEMA "${schema}"`);
     await client.query(`SET LOCAL search_path TO "${schema}"`);
-    for (const name of EARLIER) await client.query(migrationSql(name));
+    for (const name of earlier) await client.query(migrationSql(name));
     await fn(schema);
   } finally {
     await client.query('ROLLBACK');
@@ -162,5 +169,77 @@ describe(`upgrading existing data with ${UPGRADE}`, () => {
       `SELECT count(*)::int AS n FROM pg_namespace WHERE nspname LIKE 'migration\\_upgrade\\_%'`,
     );
     expect(left.rows).toEqual([{ n: 0 }]);
+  });
+});
+
+describe(`upgrading existing data with ${INVITATIONS_UPGRADE}`, () => {
+  const INVITE = (n: number) => `77777777-7777-4777-8777-77777777777${n}`;
+
+  async function withOrganization() {
+    await client.query(
+      `INSERT INTO "Organization" (id, name, slug, "updatedAt") VALUES ($1, 'Existing', 'existing', now())`,
+      [ORG],
+    );
+  }
+
+  it('keeps existing invitations and starts enforcing the new rules', async () => {
+    await inThrowawaySchema(async () => {
+      await withOrganization();
+      await client.query(
+        `INSERT INTO "Invitation" (id, "organizationId", email, role, "tokenHash", "expiresAt", "acceptedAt")
+         VALUES ($1, $3, 'open@example.com', 'AGENT', 'hash-1', now() + interval '1 day', NULL),
+                ($2, $3, 'open@example.com', 'ADMIN', 'hash-2', now() - interval '1 day', now() - interval '2 days')`,
+        [INVITE(1), INVITE(2), ORG],
+      );
+
+      await client.query(migrationSql(INVITATIONS_UPGRADE));
+
+      const rows = await client.query(
+        `SELECT id, "revokedAt", "acceptedByUserId" FROM "Invitation" ORDER BY id`,
+      );
+      expect(rows.rows).toEqual([
+        { id: INVITE(1), revokedAt: null, acceptedByUserId: null },
+        { id: INVITE(2), revokedAt: null, acceptedByUserId: null },
+      ]);
+      // A second open invitation to the same email is now refused.
+      await expect(
+        client.query(
+          `INSERT INTO "Invitation" (id, "organizationId", email, "tokenHash", "expiresAt")
+           VALUES ($1, $2, 'open@example.com', 'hash-3', now() + interval '1 day')`,
+          [INVITE(3), ORG],
+        ),
+      ).rejects.toThrow(/Invitation_one_open_per_email_key/);
+    }, INVITATIONS_UPGRADE);
+  });
+
+  it.each([
+    ['an email that isn’t normalized', `'Mixed@Example.com', 'AGENT'`],
+    ['an owner invitation', `'owner@example.com', 'OWNER'`],
+  ])('stops and names an invitation with %s', async (_, values) => {
+    await inThrowawaySchema(async () => {
+      await withOrganization();
+      await client.query(
+        `INSERT INTO "Invitation" (id, "organizationId", email, role, "tokenHash", "expiresAt")
+         VALUES ($1, $2, ${values}, 'hash-x', now())`,
+        [INVITE(4), ORG],
+      );
+      await expect(client.query(migrationSql(INVITATIONS_UPGRADE))).rejects.toThrow(
+        new RegExp(`invitation ${INVITE(4)}`),
+      );
+    }, INVITATIONS_UPGRADE);
+  });
+
+  it('stops and names two open invitations to one email', async () => {
+    await inThrowawaySchema(async () => {
+      await withOrganization();
+      await client.query(
+        `INSERT INTO "Invitation" (id, "organizationId", email, "tokenHash", "expiresAt")
+         VALUES ($1, $3, 'dup@example.com', 'hash-5', now()), ($2, $3, 'dup@example.com', 'hash-6', now())`,
+        [INVITE(5), INVITE(6), ORG],
+      );
+      await expect(client.query(migrationSql(INVITATIONS_UPGRADE))).rejects.toThrow(
+        /one open per email/,
+      );
+    }, INVITATIONS_UPGRADE);
   });
 });

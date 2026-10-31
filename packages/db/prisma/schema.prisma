@@ -78,12 +78,13 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  memberships  Membership[]
-  sessions     Session[]
-  messages     Message[]
-  ticketEvents TicketEvent[]
-  auditLogs    AuditLog[]
-  invitations  Invitation[]
+  memberships         Membership[]
+  sessions            Session[]
+  messages            Message[]
+  ticketEvents        TicketEvent[]
+  auditLogs           AuditLog[]
+  invitations         Invitation[]  @relation("InvitationInviter")
+  acceptedInvitations Invitation[]  @relation("InvitationAcceptor")
 }
 
 model Session {
@@ -154,19 +155,26 @@ model Membership {
   @@index([userId])
 }
 
+// At most one open invitation (not accepted, not revoked) per organization and email:
+// "Invitation_one_open_per_email_key", a partial unique index created by hand in a migration.
+// Emails are stored normalized (lower-cased, trimmed) and OWNER is never invitable; both are
+// CHECK constraints there too.
 model Invitation {
-  id              String    @id @default(uuid()) @db.Uuid
-  organizationId  String    @db.Uuid
-  email           String
-  role            Role      @default(AGENT)
-  tokenHash       String    @unique
-  invitedByUserId String?   @db.Uuid
-  expiresAt       DateTime
-  acceptedAt      DateTime?
-  createdAt       DateTime  @default(now())
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  email            String // stored lower-cased and trimmed, like User.email
+  role             Role      @default(AGENT)
+  tokenHash        String    @unique // HMAC-SHA-256(SESSION_SECRET, token); raw token is never stored
+  invitedByUserId  String?   @db.Uuid
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?   @db.Uuid
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  invitedBy    User?        @relation(fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  invitedBy    User?        @relation("InvitationInviter", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  acceptedBy   User?        @relation("InvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, email])
 }
