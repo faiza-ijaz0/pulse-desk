@@ -2,7 +2,7 @@
 
 > The source of truth is [`packages/db/prisma/schema.prisma`](../../packages/db/prisma/schema.prisma)
 > and its migrations in `packages/db/prisma/migrations/`. Changes made while moving the
-> Phase 1 draft into the codebase are listed in [§4](#4-schema-changes-in-phase-2).
+> original design draft into the codebase are listed in [§4](#4-schema-changes-from-the-design-draft).
 
 ## 1. Entities
 
@@ -28,7 +28,7 @@
 | **Ticket**              | A support request                                  | `(organizationId, number)` unique. Status, priority, channel, assignee, team, SLA due/met timestamps.                                                                   |
 | **Message**             | A conversation entry on a ticket                   | Author is an agent, a customer or the system. `PUBLIC` replies or `INTERNAL` notes.                                                                                     |
 | **Tag** / **TicketTag** | Free-form labels                                   | Unique tag name per org.                                                                                                                                                |
-| **TicketEvent**         | Append-only ticket timeline                        | Drives the activity feed **and** analytics: first-response time, resolution time, breach counts, agent throughput.                                                      |
+| **TicketEvent**         | Append-only ticket timeline                        | Drives the activity feed today, and is designed to feed analytics (planned): first-response time, resolution time, breach counts, agent throughput.                     |
 | **AuditLog**            | Administrative actions                             | Role changes, invites, SLA policy edits, with actor, IP and `requestId`.                                                                                                |
 
 ### Relationship sketch
@@ -55,13 +55,15 @@ OPEN ──► PENDING (waiting on customer) ──► OPEN (customer replied)
   │  ╲
   │   ► ON_HOLD (waiting on third party) ──► OPEN
   ▼
-SOLVED ──(customer reply)──► OPEN
+SOLVED ──(agent reopens; customer reply, planned)──► OPEN
   │
-  └──(auto after N days, worker job)──► CLOSED   (terminal; a reply creates a follow-up ticket)
+  └──(auto-close sweep, after the organization's delay)──► CLOSED   (terminal and read-only)
 ```
 
 The rules are enforced by one pure function, `transitionTicketStatus` in
-`packages/shared/src/ticket-lifecycle.ts`, used by the API (and later the auto-close job):
+`packages/shared/src/ticket-lifecycle.ts`, used by the API and the auto-close sweep. The
+"Customer reply" column is defined but not reachable yet: customers can't reply until email
+intake or a portal exists (planned).
 
 | From      | Agent may move to                      | Customer reply | System   |
 | --------- | -------------------------------------- | -------------- | -------- |
@@ -111,7 +113,7 @@ create, rename, delete or pick other policies.
   non-default policy already holds that name (only possible in older data), the save is
   `409 CONFLICT` and rolls back.
 
-What a save means for tickets (decided for Phase 5E):
+What a save means for tickets:
 
 - **New tickets only.** Tickets created after the save commits take the new targets. Existing
   tickets keep their stored due dates; nothing is recalculated or backfilled. A ticket created
@@ -316,11 +318,11 @@ the constraint applies only when the reference is set.
 
 Consequence: these FKs use `onDelete: NoAction` (Prisma cannot `SetNull` half of a
 composite key whose other column is required, and `Restrict` would break organization
-deletion — see [§4](#4-schema-changes-in-phase-2)). Services must explicitly unassign
+deletion — see [§4](#4-schema-changes-from-the-design-draft)). Services must explicitly unassign
 tickets before removing a member or deleting a team. This is a business rule
 we want anyway.
 
-### Concurrency (Phase 4D)
+### Concurrency
 
 Writes that touch the same rows follow **one lock order**, so they wait for each other
 instead of failing or deadlocking:
@@ -370,7 +372,7 @@ organizations and checks that a user in org A:
 - gets `404` when reading, updating or deleting org B's resources by ID;
 - never sees org B's rows in list endpoints;
 - cannot reference org B's IDs in request bodies (e.g. assign a ticket to org B's agent);
-- receives no Socket.IO events for org B's rooms.
+- (planned, with real-time updates) receives no Socket.IO events for org B's rooms.
 
 ### Future layer — PostgreSQL Row-Level Security (deferred)
 
@@ -382,10 +384,12 @@ core modules exist so it can be added and benchmarked in isolation.
 
 ### Other isolation rules
 
-- **Real-time:** room names are derived server-side (`org:{organizationId}`,
+- **Real-time (planned):** room names will be derived server-side (`org:{organizationId}`,
   `ticket:{ticketId}`). Joining a ticket room requires the same policy check as reading the ticket.
-- **Jobs:** every job payload includes `organizationId`. Processors re-load data
-  through tenant-scoped repositories rather than trusting payload contents.
+- **Jobs:** today's sweeps scan across organizations by design, but every write re-reads and
+  locks the ticket row and records the ticket's own `organizationId`. Planned queue jobs will
+  carry `organizationId` and re-load data through tenant-scoped repositories rather than
+  trusting payload contents.
 - **Caching / rate-limit keys:** prefixed with `organizationId` where they are tenant data.
 - **Logs:** include `organizationId` for traceability. Never log message bodies or customer PII at `info` level.
 
@@ -402,9 +406,9 @@ core modules exist so it can be added and benchmarked in isolation.
   Constraints Prisma can't express (partial unique index for default SLA policy,
   `CHECK` constraints) are added as hand-written SQL in the migration.
 
-## 4. Schema changes in Phase 2
+## 4. Schema changes from the design draft
 
-The Phase 1 draft moved to `packages/db` with these deliberate changes:
+The original design draft moved to `packages/db` with these deliberate changes:
 
 | Change                                                                                                                          | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

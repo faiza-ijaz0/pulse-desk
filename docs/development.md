@@ -2,12 +2,11 @@
 
 ## Prerequisites
 
-| Tool                                           | Version  | Required for                                                |
-| ---------------------------------------------- | -------- | ----------------------------------------------------------- |
-| Node.js                                        | 24.x LTS | Everything (see `.nvmrc`)                                   |
-| pnpm                                           | 11.x     | Everything (pinned via `packageManager`; `corepack enable`) |
-| PostgreSQL                                     | 15+      | Migrations, seed, database integration tests                |
-| Redis-compatible server (Redis/Valkey/Memurai) | 7+       | Nothing yet — reserved for background jobs (see below)      |
+| Tool       | Version  | Required for                                                |
+| ---------- | -------- | ----------------------------------------------------------- |
+| Node.js    | 24.x LTS | Everything (see `.nvmrc`)                                   |
+| pnpm       | 11.x     | Everything (pinned via `packageManager`; `corepack enable`) |
+| PostgreSQL | 15+      | Migrations, seed, database integration tests                |
 
 **Docker and WSL are not required.** Install PostgreSQL natively (e.g. the EDB installer on
 Windows, Homebrew on macOS, your distro package on Linux) and point `.env` at it.
@@ -18,7 +17,6 @@ Windows, Homebrew on macOS, your distro package on Linux) and point `.env` at it
 | Service missing | Still works                                                                             | Doesn't work                                                                           |
 | --------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | PostgreSQL      | `pnpm check` (lint, typecheck, unit tests, builds); the API starts and serves `/health` | Signing in or up (so every app page), `db:*`, `pnpm test:integration`, `pnpm test:e2e` |
-| Redis           | Everything in this phase                                                                | — (the API uses an in-memory rate-limit store until Redis is wired in)                 |
 
 ## First-time setup
 
@@ -47,8 +45,12 @@ pnpm db:deploy           # apply committed migrations to DATABASE_URL
 pnpm db:seed             # load the two demo organizations (safe to re-run)
 ```
 
-Alternatively, with Docker: `pnpm services:up` starts PostgreSQL 17 and Redis 7 with the
-same credentials and creates both databases.
+Alternatively, with Docker: `pnpm services:up` starts PostgreSQL 17 with the same credentials
+and creates both databases.
+
+Redis isn't needed: no code uses it yet (the API keeps rate limits in memory). It is planned
+for shared rate limits, queues and real-time updates; `REDIS_URL` in `.env.example` is
+reserved for then.
 
 ### Run the apps
 
@@ -97,7 +99,7 @@ All commands run from the repository root.
 | `pnpm db:deploy`                     | `prisma migrate deploy` — apply committed migrations                                                                                                                                                            |
 | `pnpm db:seed`                       | Load demo data                                                                                                                                                                                                  |
 | `pnpm db:studio`                     | Prisma Studio                                                                                                                                                                                                   |
-| `pnpm services:up` / `services:down` | Optional Docker services                                                                                                                                                                                        |
+| `pnpm services:up` / `services:down` | Optional Docker PostgreSQL                                                                                                                                                                                      |
 
 `pnpm check` deliberately excludes `test:integration` and `test:e2e` because they need
 PostgreSQL and a browser; CI runs both on every push (see `.github/workflows/ci.yml`).

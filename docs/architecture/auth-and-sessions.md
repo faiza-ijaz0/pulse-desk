@@ -1,10 +1,11 @@
 # Authentication and Session Security
 
-> Status: **implemented in Phase 3**: registration, login, logout, session restoration,
-> organization switching, tenant context and RBAC enforcement. Not yet built: "log out other
-> devices", password change/reset, the expired-session cleanup job (needs BullMQ) and
-> Socket.IO auth (§7). Endpoints and the decisions made while implementing are in
-> [§10](#10-implementation-phase-3); invitations and member management in
+> Status: **implemented**: registration, login, logout, session restoration,
+> organization switching, tenant context and RBAC enforcement; invitations and member management
+> followed. **Planned, not built:** "log out other devices", password change and reset, an
+> expired-session cleanup job, and Socket.IO authentication (§7). Rows below marked _(planned)_
+> describe that intended behavior. Endpoints and the decisions made while implementing are in
+> [§10](#10-implementation); invitations and member management in
 > [§11](#11-invitations-and-member-management).
 
 ## 1. Approach
@@ -61,10 +62,10 @@ neither usable tokens nor anything that can be checked offline without the serve
 | Event                   | Effect                                                                                                                           |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Logout                  | Current session `revokedAt = now`; cookie cleared                                                                                |
-| "Log out other devices" | All of the user's other sessions revoked                                                                                         |
-| Password change / reset | All sessions revoked, then a fresh session issued                                                                                |
+| "Log out other devices" | _(planned)_ All of the user's other sessions revoked                                                                             |
+| Password change / reset | _(planned)_ All sessions revoked, then a fresh session issued                                                                    |
 | Member removed from org | Sessions with that `activeOrganizationId` lose access on the next request (membership check). The user's other orgs stay usable. |
-| Expired sessions        | Deleted by a daily BullMQ cleanup job                                                                                            |
+| Expired sessions        | Refused on every request; rows stay until a cleanup job (planned) deletes them                                                   |
 
 ### Session fixation
 
@@ -100,14 +101,14 @@ Cookie authentication needs CSRF defense. PulseDesk layers three:
 
 ## 6. Authorization (RBAC)
 
-| Permission (examples)                   | OWNER |      ADMIN      |       AGENT       |
-| --------------------------------------- | :---: | :-------------: | :---------------: |
-| View / reply to tickets                 |  ✅   |       ✅        |        ✅         |
-| Assign tickets to others                |  ✅   |       ✅        | ✅ (configurable) |
-| Manage teams, tags, SLA policies        |  ✅   |       ✅        |        ❌         |
-| Invite / remove members, change roles   |  ✅   | ✅ (not owners) |        ❌         |
-| View analytics                          |  ✅   |       ✅        |  Own stats only   |
-| Delete organization, transfer ownership |  ✅   |       ❌        |        ❌         |
+| Permission (examples)                               | OWNER |      ADMIN      |       AGENT       |
+| --------------------------------------------------- | :---: | :-------------: | :---------------: |
+| View / reply to tickets                             |  ✅   |       ✅        |        ✅         |
+| Assign tickets to others                            |  ✅   |       ✅        | ✅ (configurable) |
+| Manage teams, tags, SLA policies                    |  ✅   |       ✅        |        ❌         |
+| Invite / remove members, change roles               |  ✅   | ✅ (not owners) |        ❌         |
+| View analytics _(planned)_                          |  ✅   |       ✅        |  Own stats only   |
+| Delete organization, transfer ownership _(planned)_ |  ✅   |       ❌        |        ❌         |
 
 - The role-to-permission map lives in `@pulsedesk/shared`. The web app uses it to hide
   controls, and the API uses it to enforce them.
@@ -116,7 +117,7 @@ Cookie authentication needs CSRF defense. PulseDesk layers three:
 - An organization must always have at least one `OWNER`. This is enforced in the service layer inside a transaction.
 - Role changes and member removals are written to `AuditLog`.
 
-**Write endpoints (as implemented, Phase 4D).** Every one requires a session, the trusted
+**Write endpoints (as implemented).** Every one requires a session, the trusted
 `Origin` (CSRF), and a membership in the active organization that is re-read on each request,
 so a removal or demotion applies to the very next request.
 
@@ -136,7 +137,9 @@ another organization gets the same 404 as one that never existed. This table is 
 `apps/api/test/integration/authorization.int.test.ts`, which fails if a write route is added
 without being listed there.
 
-## 7. Socket.IO authentication
+## 7. Socket.IO authentication (planned, not built)
+
+There is no Socket.IO server yet. When real-time updates are added, they will work like this:
 
 - The handshake request carries the same session cookie (same origin).
   `io.use()` middleware validates it using the same code path as HTTP.
@@ -148,13 +151,13 @@ without being listed there.
 
 ## 8. Abuse protection
 
-| Control                           | Setting                                                                      |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| Login / password-reset rate limit | `RATE_LIMIT_AUTH_PER_15_MINUTES` per IP **and** per email (Redis store)      |
-| Global API rate limit             | `RATE_LIMIT_GLOBAL_PER_MINUTE` per IP                                        |
-| Body size limit                   | `express.json({ limit: '100kb' })`                                           |
-| Proxy awareness                   | `trust proxy` set from `TRUST_PROXY_HOPS` so the real client IP is used      |
-| Headers                           | `helmet` defaults + `Cache-Control: no-store` on authenticated API responses |
+| Control               | Setting                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Login rate limit      | `RATE_LIMIT_AUTH_PER_15_MINUTES` failed attempts per IP **and** per email (in-memory store; Redis planned) |
+| Global API rate limit | `RATE_LIMIT_GLOBAL_PER_MINUTE` per IP                                                                      |
+| Body size limit       | `express.json({ limit: '100kb' })`                                                                         |
+| Proxy awareness       | `trust proxy` set from `TRUST_PROXY_HOPS` so the real client IP is used                                    |
+| Headers               | `helmet` defaults + `Cache-Control: no-store` on authenticated API responses                               |
 
 ## 9. Out of scope for v1 (tracked for later)
 
@@ -163,7 +166,7 @@ without being listed there.
 - SSO (OIDC/SAML)
 - Customer portal logins (customers are contacts, not users, in v1)
 
-## 10. Implementation (Phase 3)
+## 10. Implementation
 
 ### Endpoints
 
@@ -214,12 +217,31 @@ A `:userId` from another organization returns `404 NOT_FOUND`, identical to a no
 | Rate limits              | Login: failed attempts per IP **and** per email (successes don't count). Registration: every attempt per IP. In-memory store (overview D12) until Redis arrives, so limits are per instance.                                                                                                                                                                                                                                                                                                         |
 | Production config        | The API refuses to start in production unless `SESSION_COOKIE_SECURE=true`, the cookie name starts with `__Host-`, `SESSION_SECRET` isn't the placeholder, and every `WEB_ORIGIN` is `https://`. The placeholder secret is accepted only in development.                                                                                                                                                                                                                                             |
 | Database outages         | Prisma connection/credential errors (`P1000`, `P1001`, `P1002`, `P1003`, `P1008`, `P1017`, `P2024`) become `503 SERVICE_UNAVAILABLE` with `Retry-After: 30`, logged as `Database unavailable` with the `errorCode` and request ID. Other unexpected errors stay a generic `500` whose log line also carries an `errorCode`. The web app shows "temporarily unavailable" for 503, "couldn't reach PulseDesk" when no API answers, field errors for 400s, and a reference ID only for unexpected 500s. |
-| Schema                   | No migration was needed: the Phase 2 `Session`, `Membership` and `AuditLog` models already had every column.                                                                                                                                                                                                                                                                                                                                                                                         |
+| Schema                   | No migration was needed: the existing `Session`, `Membership` and `AuditLog` models already had every column.                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## 11. Invitations and member management
 
 Owners and admins invite people into the session's active organization; the invitee joins with
 a single-use link. There is no email delivery yet (see "Delivering links" below).
+
+### Token lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Pending: POST /invitations<br/>token shown once, only its HMAC stored
+  Pending --> Accepted: POST /invitations/accept or /register<br/>by the invited email only
+  Pending --> Revoked: DELETE /invitations/:id
+  Pending --> Revoked: same email re-invited (replaced)
+  Pending --> Revoked: inviter removed or demoted
+  Pending --> Expired: 7 days pass
+  Accepted --> [*]
+  Revoked --> [*]
+  Expired --> [*]
+```
+
+Every end state is final: the link stops working, and a new invitation issues a new token.
+At most one invitation per email and organization is open at a time (a partial unique
+index; see [data-model.md](./data-model.md)).
 
 ### Endpoints
 

@@ -1,5 +1,9 @@
 # Deployment
 
+> **These are future deployment instructions.** PulseDesk is not deployed yet, and deployment is
+> the last stage of the project. Nothing here has been performed on Render or Vercel; only the
+> Neon database steps marked _Done_ below were carried out.
+
 > **Status (2026-10-31):** the repository is prepared for this deployment.
 >
 > - **Done:** the Neon PostgreSQL production database exists, and its first two migrations
@@ -142,6 +146,19 @@ Paste them directly into the provider dashboards. Don't put them in `.env`, `.en
 `vercel.json`, the README, commit messages, issue trackers or chat. Don't prefix any of
 them with `VITE_`.
 
+## Before a release: local verification
+
+Run these from a clean checkout of the commit you'll release, one after another (not in
+parallel), and release only if all pass:
+
+- [ ] `git status` is clean and `HEAD` is the intended release commit.
+- [ ] `pnpm check`: format, lint, typecheck, unit tests and production builds.
+- [ ] `pnpm test:integration` against the local, disposable `pulsedesk_test` database.
+- [ ] `pnpm build && pnpm test:e2e`.
+- [ ] CI is green for that commit on GitHub.
+- [ ] Every new migration has been reviewed: additive, safe for the running API, and with its
+      rollback described in its header comment.
+
 ## Step 1: Neon PostgreSQL
 
 > **Done.** The production database exists. These steps are kept for reference, e.g. if
@@ -163,6 +180,24 @@ them with `VITE_`.
 > As last known, three migrations are pending (`20261026000000_case_insensitive_team_tag_names`,
 > `20261027000000_sla_breach_markers_and_auto_close` and `20261031000000_invitation_lifecycle`).
 > Apply pending migrations with this step before the API version that needs them starts.
+
+**Before migrating, take a backup:**
+
+- [ ] In the Neon console, create a branch from the production branch at the current point in
+      time, named e.g. `backup-pre-<commit>-<date>`. Don't attach it to any app.
+- [ ] Note its name and creation time: that's your restore point.
+- [ ] Delete it only once the release has been stable for a while.
+
+**Migration safety reminders:**
+
+- Use the **direct** (non-pooled) connection string, and check the host that `migrate:status`
+  prints before running `db:deploy`.
+- Proceed only if the pending list is exactly what you expect. Stop on any failed migration,
+  drift, or error.
+- Never edit a migration that has been applied anywhere; fix forward with a new one.
+- If a migration's pre-check stops it (it names the conflicting rows), fix the data, run
+  `prisma migrate resolve --rolled-back <name>`, then `db:deploy` again, or restore the backup
+  branch.
 
 From a trusted machine with this repository checked out at the commit being released:
 
@@ -203,7 +238,7 @@ API version starts, and keep migrations backwards-compatible with the running ve
 > re-applying the migration would stop on the duplicate open invitations. Then follow the
 > comment at the top of the migration.
 
-> **SLA policy management (Phase 5E)** adds no migration: it uses the existing `SlaPolicy` and
+> **SLA policy management** adds no migration: it uses the existing `SlaPolicy` and
 > `SlaTarget` tables. It adds `GET`/`PUT /api/v1/sla-policy`, which the new `/sla` page calls,
 > so deploy the API before the web app (the order below). A web app deployed first shows
 > “Couldn’t load SLA targets” on `/sla` until the API catches up; nothing else is affected.
@@ -497,6 +532,35 @@ curl -i -X POST "$WEB/api/v1/auth/login" -H 'Content-Type: application/json' -d 
 
 **9. Logs.** In Render's logs, request lines show `"x-pulsedesk-proxy-secret":"[REDACTED]"`
 and `"cookie":"[REDACTED]"`, never the values.
+
+**10. Feature smoke checks.** In a throwaway organization created for the check:
+
+- [ ] Create a ticket, reply, add an internal note, change status and priority; the timeline
+      shows each change, and the inbox shows an SLA badge.
+- [ ] **SLA policies** (`/sla`): targets load, and an owner can save them; an agent sees them
+      read-only.
+- [ ] **Settings:** rename the organization and change the auto-close delay; both persist after
+      a reload.
+- [ ] **Team:** invite an email as Agent, open the link in a private window, sign up from it,
+      and land in the organization as an agent; revoke a second invitation and check its link
+      is refused.
+- [ ] Render's logs show "SLA breach sweep scheduled" and "Auto-close sweep scheduled" at
+      startup, and no sweep errors afterwards.
+
+## Rollback
+
+- **Prefer rolling the applications back and leaving the database as it is.** Migrations are
+  additive, so the previous API version keeps working on the newer schema.
+- **Order:** roll back the web app first (Vercel: promote the previous deployment), then the
+  API (Render: roll back to the previous deploy). The new web app validates the new API's
+  responses strictly, so it can't run against an older API. Then repeat checks 2 and 4.
+- **First release:** there is no previous version, so rolling back means taking the services
+  offline (suspend the Render service, and pause or remove the Vercel deployment). The
+  migrated database stays as it is.
+- **Database:** Prisma has no down-migrations. Fix forward where possible. As a last resort,
+  restore from the backup branch made before migrating (writes made since are lost), or undo
+  a migration by hand following the steps in its header comment, in reverse order, which
+  also means removing its row from `_prisma_migrations`.
 
 ## What was verified locally
 

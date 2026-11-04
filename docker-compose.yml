@@ -1,5 +1,8 @@
 # Local development services only. Credentials here are throwaway dev defaults
-# and must match DATABASE_URL / REDIS_URL in your local .env.
+# and must match DATABASE_URL / TEST_DATABASE_URL in your local .env.
+#
+# Only PostgreSQL is needed today. Redis is planned (shared rate limits, background queues,
+# real-time fan-out) and will be added here when the code uses it.
 name: pulsedesk
 
 services:
@@ -21,19 +24,5 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
-    ports:
-      - '127.0.0.1:6379:6379'
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
 volumes:
   postgres-data:
-  redis-data:

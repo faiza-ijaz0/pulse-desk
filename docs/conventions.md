@@ -17,19 +17,19 @@ Where a rule can't be enforced, reviewers do.
 
 ## Naming
 
-| Thing                 | Style                                                           | Example                                 |
-| --------------------- | --------------------------------------------------------------- | --------------------------------------- |
-| Files                 | `kebab-case`, with role suffix in API modules                   | `tickets.service.ts`, `ticket-list.tsx` |
-| React components      | `PascalCase`                                                    | `TicketList`                            |
-| Hooks                 | `useCamelCase`                                                  | `useTicketQuery`                        |
-| Variables / functions | `camelCase`                                                     | `assignTicket`                          |
-| Constants             | `SCREAMING_SNAKE_CASE` only for true module-level constants     | `MAX_PAGE_SIZE`                         |
-| Env vars              | `SCREAMING_SNAKE_CASE`; browser-exposed ones start with `VITE_` | `SESSION_SECRET`                        |
-| Error codes           | `SCREAMING_SNAKE_CASE`                                          | `TICKET_NOT_FOUND`                      |
-| Permissions           | `resource:action`                                               | `ticket:assign`                         |
-| Socket events         | `resource.event`                                                | `ticket.updated`                        |
-| Queues / jobs         | `kebab-case`                                                    | `sla`, `sla-check`                      |
-| Workspace packages    | `@pulsedesk/<name>`                                             | `@pulsedesk/shared`                     |
+| Thing                   | Style                                                           | Example                                 |
+| ----------------------- | --------------------------------------------------------------- | --------------------------------------- |
+| Files                   | `kebab-case`, with role suffix in API modules                   | `tickets.service.ts`, `ticket-list.tsx` |
+| React components        | `PascalCase`                                                    | `TicketList`                            |
+| Hooks                   | `useCamelCase`                                                  | `useTicketQuery`                        |
+| Variables / functions   | `camelCase`                                                     | `assignTicket`                          |
+| Constants               | `SCREAMING_SNAKE_CASE` only for true module-level constants     | `MAX_PAGE_SIZE`                         |
+| Env vars                | `SCREAMING_SNAKE_CASE`; browser-exposed ones start with `VITE_` | `SESSION_SECRET`                        |
+| Error codes             | `SCREAMING_SNAKE_CASE`                                          | `TICKET_NOT_FOUND`                      |
+| Permissions             | `resource:action`                                               | `ticket:assign`                         |
+| Socket events (planned) | `resource.event`                                                | `ticket.updated`                        |
+| Queues / jobs (planned) | `kebab-case`                                                    | `sla`, `sla-check`                      |
+| Workspace packages      | `@pulsedesk/<name>`                                             | `@pulsedesk/shared`                     |
 
 ## API design
 
@@ -45,8 +45,8 @@ Where a rule can't be enforced, reviewers do.
 
 - `routes` → `controller` → `service` → `repository`. Never skip or reverse layers.
 - Controllers: parse validated input, call one service function, shape the response.
-- Services: business rules, transactions, policy checks, enqueueing jobs, and emitting
-  real-time events **after commit**. No Express types.
+- Services: business rules, transactions and policy checks (and, once queues and real-time
+  updates exist, enqueueing jobs and emitting events **after commit**). No Express types.
 - Repositories: the only place that imports the Prisma client. Every tenant-scoped
   query includes `organizationId`.
 - Side effects (time, randomness, queues, emitters) are injected, so they can be replaced in tests.
