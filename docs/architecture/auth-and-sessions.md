@@ -151,13 +151,13 @@ There is no Socket.IO server yet. When real-time updates are added, they will wo
 
 ## 8. Abuse protection
 
-| Control               | Setting                                                                                                    |
-| --------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Login rate limit      | `RATE_LIMIT_AUTH_PER_15_MINUTES` failed attempts per IP **and** per email (in-memory store; Redis planned) |
-| Global API rate limit | `RATE_LIMIT_GLOBAL_PER_MINUTE` per IP                                                                      |
-| Body size limit       | `express.json({ limit: '100kb' })`                                                                         |
-| Proxy awareness       | `trust proxy` set from `TRUST_PROXY_HOPS` so the real client IP is used                                    |
-| Headers               | `helmet` defaults + `Cache-Control: no-store` on authenticated API responses                               |
+| Control               | Setting                                                                                                                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login rate limit      | `RATE_LIMIT_AUTH_PER_15_MINUTES` failed attempts per IP **and** per email (in-memory store; Redis planned)                                                                                                           |
+| Global API rate limit | `RATE_LIMIT_GLOBAL_PER_MINUTE` per IP                                                                                                                                                                                |
+| Body size limit       | `express.json({ limit: '100kb' })`                                                                                                                                                                                   |
+| Proxy awareness       | `trust proxy` set from `TRUST_PROXY_HOPS` so the real client IP is used                                                                                                                                              |
+| Headers               | API: `helmet` defaults + `Cache-Control: no-store` on authenticated API responses. Web app: CSP, HSTS, COOP/CORP and framing headers from `vercel.json` ([deployment.md](../deployment.md#spa-security-headers-web)) |
 
 ## 9. Out of scope for v1 (tracked for later)
 

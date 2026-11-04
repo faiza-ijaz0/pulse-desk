@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
@@ -5,6 +6,23 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 const ENV_DIR = '../..';
+
+type VercelConfig = { headers: { source: string; headers: { key: string; value: string }[] }[] };
+
+/**
+ * The security headers vercel.json sets on every SPA response, so `vite preview` (and the E2E
+ * suite, which runs against it) serves the app under the same Content-Security-Policy as
+ * production. Not used by the dev server: Vite's HMR needs an inline React Refresh preamble
+ * and a WebSocket that this policy deliberately blocks.
+ */
+function productionSecurityHeaders(): Record<string, string> {
+  const config = JSON.parse(
+    readFileSync(new URL('./vercel.json', import.meta.url), 'utf8'),
+  ) as VercelConfig;
+  const rule = config.headers.find((entry) => entry.source === '/(.*)');
+  if (!rule) throw new Error('vercel.json has no "/(.*)" headers rule');
+  return Object.fromEntries(rule.headers.map(({ key, value }) => [key, value]));
+}
 
 export default defineConfig(({ command, mode }) => {
   const fileEnv = loadEnv(mode, ENV_DIR, '');
@@ -39,7 +57,7 @@ export default defineConfig(({ command, mode }) => {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
     },
     server: { port: 5173, strictPort: true, proxy },
-    preview: { port: 4173, strictPort: true, proxy },
+    preview: { port: 4173, strictPort: true, proxy, headers: productionSecurityHeaders() },
     build: {
       sourcemap: true,
       rolldownOptions: {
@@ -56,7 +74,13 @@ export default defineConfig(({ command, mode }) => {
                 name: 'ui',
                 test: /node_modules[\\/](radix-ui|@radix-ui|@floating-ui|framer-motion|motion-dom|motion-utils)[\\/]/,
               },
-              { name: 'data', test: /node_modules[\\/](zod|@tanstack)[\\/]/ },
+              // zod-csp.ts sets Zod's `jitless` flag. Schemas read it when they're created
+              // at module scope in other chunks, so it must run inside Zod's own chunk:
+              // there it executes right after Zod and before any chunk that depends on it.
+              {
+                name: 'data',
+                test: /node_modules[\\/](zod|@tanstack)[\\/]|[\\/]src[\\/]lib[\\/]zod-csp\.ts$/,
+              },
             ],
           },
         },

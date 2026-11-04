@@ -374,7 +374,9 @@ Production-only rules (proxy secret, `__Host-` cookie, HTTPS origins) are descri
 
 - Security practices: hashed sessions and passwords, `__Host-` cookies, CSRF origin checks,
   rate limits, strict input validation, tenant isolation in code and database, hashed
-  single-use invitation tokens, a strict CSP on API responses, and redaction of cookies,
+  single-use invitation tokens, a strict CSP on API responses, a same-origin-only CSP with
+  HSTS and cross-origin isolation headers on the web app
+  ([details](docs/deployment.md#spa-security-headers-web)), and redaction of cookies,
   tokens and secrets in logs.
 - **Found a vulnerability?** Please report it privately; see [SECURITY.md](SECURITY.md).
 

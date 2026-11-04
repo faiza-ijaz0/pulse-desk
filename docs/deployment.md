@@ -48,7 +48,7 @@ Browser ──HTTPS──▶ Vercel (static SPA + reverse proxy) ──HTTPS + s
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `routes[0]`   | Matches `^/(api(?:/.*)?\|health\|health/ready)$` and proxies it to `${PULSEDESK_API_ORIGIN}/$1`. A `request.headers` **`set`** transform writes `x-pulsedesk-proxy-secret: ${PROXY_SHARED_SECRET}`. `x-vercel-enable-rewrite-caching: 0` opts the route out of CDN caching. |
 | `rewrites`    | SPA fallback: every other path that isn't a static file → `/index.html` (unchanged).                                                                                                                                                                                        |
-| `headers`     | Immutable caching for hashed `/assets/*`, plus `nosniff`, `DENY` framing, a referrer policy and a permissions policy on the static/SPA responses (unchanged).                                                                                                               |
+| `headers`     | Immutable caching for hashed `/assets/*`, plus the SPA security headers on every static/SPA response: Content-Security-Policy, HSTS, COOP, CORP, `nosniff`, `DENY` framing, a referrer policy and a permissions policy ([below](#spa-security-headers-web)).                |
 | build install | `npx --yes pnpm@11.21.0 install --frozen-lockfile` / `run build` → `dist/` (unchanged).                                                                                                                                                                                     |
 
 Why `routes` and not `rewrites`: Vercel's `rewrites` can't modify request headers. Their
@@ -66,6 +66,91 @@ and the expected order was confirmed: proxy route → header routes → filesyst
 A negative control (a header transform on `rewrites`) fails validation. That is a static
 check. Only a real deployment proves the behaviour, which is why the verification section
 below exists.
+
+### SPA security headers (web)
+
+These are the headers for the **web app**: `index.html`, `/assets/*` and the other static
+files Vercel serves. The **API** sets its own headers with `helmet` (`apps/api/src/http/middleware/security.ts`:
+`default-src 'none'`, `frame-ancestors 'none'`, `Cache-Control: no-store`), and they are
+unchanged. The proxy route is matched before the `headers` rule, so API responses never get the
+SPA's headers.
+
+| Header                         | Value                                      | Protects against                                                                                              |
+| ------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `Content-Security-Policy`      | see below                                  | Cross-site scripting: injected markup can't run scripts, load resources from other origins or exfiltrate data |
+| `Strict-Transport-Security`    | `max-age=63072000` (2 years)               | Protocol downgrade and cookie theft over plain HTTP after the first visit                                     |
+| `Cross-Origin-Opener-Policy`   | `same-origin`                              | Other windows keeping a handle to PulseDesk (`window.opener`), cross-window leaks such as XS-Leaks            |
+| `Cross-Origin-Resource-Policy` | `same-origin`                              | Other sites embedding PulseDesk's scripts, styles or fonts                                                    |
+| `X-Content-Type-Options`       | `nosniff`                                  | MIME sniffing turning a non-script response into a script                                                     |
+| `X-Frame-Options`              | `DENY`                                     | Clickjacking in browsers older than CSP `frame-ancestors` (both say "never frame")                            |
+| `Referrer-Policy`              | `strict-origin-when-cross-origin`          | Full URLs (paths, query strings) leaking to other sites                                                       |
+| `Permissions-Policy`           | `camera=(), microphone=(), geolocation=()` | Any page or injected script asking for camera, microphone or location                                         |
+
+**Content-Security-Policy**, one directive per line:
+
+```
+default-src 'self'
+script-src 'self' 'sha256-2xnBknYKUnkGkxKiv7su3rt2iWjgoeIZEhX/pdy1saA='
+style-src 'self' 'unsafe-inline'
+img-src 'self'
+font-src 'self'
+connect-src 'self'
+object-src 'none'
+base-uri 'none'
+form-action 'self'
+frame-ancestors 'none'
+```
+
+Every directive allows only PulseDesk's own origin. The app needs nothing else: fonts are
+self-hosted (`@fontsource-variable/geist`), icons are inline SVG, there are no images from other
+hosts, and the API is same-origin (`/api` through the proxy). No directive uses a wildcard,
+`http(s):`, `data:` or `blob:`, and nothing allows `'unsafe-eval'`.
+
+Deliberate exceptions:
+
+- **`script-src` hash:** `index.html` has one inline script that applies the saved theme before
+  first paint, which avoids a light→dark flash. It is allowed by its SHA-256 hash, not by
+  `'unsafe-inline'`. Vite copies it byte for byte, and `.gitattributes` forces LF line endings,
+  so the hash is the same in every checkout. **If you edit that script, update the hash**:
+  `apps/web/src/security-headers.test.ts` recomputes it from `index.html` and fails until you do.
+- **`style-src 'unsafe-inline'`:** Radix's modal scroll lock (`react-remove-scroll-bar`, used by
+  dialogs, sheets and menus) inserts a `<style>` element whose content contains the measured
+  scrollbar width. A hash can't match changing content, and a nonce needs a per-response value
+  that static hosting can't produce. Under a strict `style-src` the browser blocked it, and the
+  page behind an open dialog kept scrolling. Scripts stay hash-only, and `img-src`/`font-src`
+  `'self'` block the usual way injected CSS leaks data (loading `url(…)` from an attacker's
+  server).
+- **Zod runs `jitless`** (`apps/web/src/lib/zod-csp.ts`). Zod's JIT compiles parsers with
+  `new Function`, which this CSP blocks, so it can't run anyway. Without the flag, Zod still
+  probes for it once, and the browser reports that probe as a violation on every page load. The
+  flag must be set before any schema is created, so the production build keeps that module in
+  Zod's own `data` chunk (`vite.config.ts`).
+
+Not used, on purpose:
+
+- **`upgrade-insecure-requests`:** every resource is same-origin, and HSTS already keeps the
+  site on HTTPS. It would add nothing, and it would break serving the same policy over plain
+  HTTP from `vite preview` locally.
+- **HSTS `includeSubDomains` and `preload`:** they commit every subdomain of the production
+  domain to HTTPS, and preloading is hard to undo. Add them only once the final domain is known
+  and every subdomain is verified to serve HTTPS. Browsers ignore HSTS on plain-HTTP responses,
+  so it has no effect locally.
+- **`Cross-Origin-Embedder-Policy`:** nothing needs cross-origin isolation, and it could block
+  future third-party resources for no benefit.
+
+Hosting assumptions and limitations:
+
+- The headers are static, so the CSP can't use nonces. That is why the inline exceptions above
+  are a hash and `'unsafe-inline'` styles.
+- `vite preview` serves the same rule (`productionSecurityHeaders()` in `vite.config.ts` reads
+  `vercel.json`), so `pnpm build` + preview and the E2E suite run the app under the production
+  policy. On proxied `/api` and `/health` responses there, the API's own headers replace the
+  preview's, as they would come from Render. The **dev server** (`pnpm dev`) doesn't send the
+  policy: Vite's hot reload needs an inline script and a WebSocket that it blocks.
+- Vercel may add its own `Strict-Transport-Security` to responses on its domains. After the
+  first deployment, check that each response carries **exactly one** HSTS header (check 11).
+- There is no CSP reporting endpoint (`report-to`), so violations in users' browsers aren't
+  collected. Add one if a reporting service is introduced.
 
 ### Proxy secret enforcement (API)
 
@@ -546,6 +631,18 @@ and `"cookie":"[REDACTED]"`, never the values.
       is refused.
 - [ ] Render's logs show "SLA breach sweep scheduled" and "Auto-close sweep scheduled" at
       startup, and no sweep errors afterwards.
+
+**11. Security headers.**
+
+```sh
+curl -sI "$WEB/login"         # SPA: the CSP, HSTS, COOP and CORP from "SPA security headers"
+curl -sI "$WEB/api/v1/auth/session"   # API: default-src 'none' from helmet, not the SPA's CSP
+```
+
+- [ ] The SPA response has each header from the table once, including exactly one
+      `Strict-Transport-Security`.
+- [ ] In the browser's developer tools, the console shows no "Content Security Policy" errors
+      while you sign in, open a ticket, open the command menu (`Ctrl/⌘ K`) and a dialog.
 
 ## Rollback
 

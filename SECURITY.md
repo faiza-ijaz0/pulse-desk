@@ -56,4 +56,6 @@ The current safeguards (Argon2id passwords, hashed server-side sessions, `__Host
 CSRF origin checks, rate limits, tenant isolation in code and database constraints, hashed
 single-use invitation tokens and log redaction) are described in
 [docs/architecture/auth-and-sessions.md](docs/architecture/auth-and-sessions.md) and
-[docs/architecture/data-model.md](docs/architecture/data-model.md).
+[docs/architecture/data-model.md](docs/architecture/data-model.md). The web app's
+Content-Security-Policy and other browser security headers, with their deliberate exceptions,
+are in [docs/deployment.md](docs/deployment.md#spa-security-headers-web).
