@@ -84,6 +84,12 @@ const SLA_STATUS: Record<Exclude<SlaStatus, 'none'>, SlaLook> = {
   met: { label: 'SLA met', tone: 'success', icon: CircleCheck },
 };
 
+/** The overall states' names, as the badges show them (plus "No SLA"), for legends and lists. */
+export const SLA_STATUS_LABELS: Readonly<Record<SlaStatus, string>> = {
+  none: 'No SLA',
+  ...Object.fromEntries(Object.entries(SLA_STATUS).map(([status, look]) => [status, look.label])),
+} as Record<SlaStatus, string>;
+
 const SLA_TARGET: Record<Exclude<SlaTargetState, 'none'>, SlaLook> = {
   on_track: { label: 'On track', tone: 'neutral', icon: Timer },
   at_risk: { label: 'At risk', tone: 'warning', icon: Hourglass },

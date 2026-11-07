@@ -101,14 +101,15 @@ Cookie authentication needs CSRF defense. PulseDesk layers three:
 
 ## 6. Authorization (RBAC)
 
-| Permission (examples)                               | OWNER |      ADMIN      |       AGENT       |
-| --------------------------------------------------- | :---: | :-------------: | :---------------: |
-| View / reply to tickets                             |  ✅   |       ✅        |        ✅         |
-| Assign tickets to others                            |  ✅   |       ✅        | ✅ (configurable) |
-| Manage teams, tags, SLA policies                    |  ✅   |       ✅        |        ❌         |
-| Invite / remove members, change roles               |  ✅   | ✅ (not owners) |        ❌         |
-| View analytics _(planned)_                          |  ✅   |       ✅        |  Own stats only   |
-| Delete organization, transfer ownership _(planned)_ |  ✅   |       ❌        |        ❌         |
+| Permission (examples)                                   | OWNER |      ADMIN      |       AGENT       |
+| ------------------------------------------------------- | :---: | :-------------: | :---------------: |
+| View / reply to tickets                                 |  ✅   |       ✅        |        ✅         |
+| Assign tickets to others                                |  ✅   |       ✅        | ✅ (configurable) |
+| Manage teams, tags, SLA policies                        |  ✅   |       ✅        |        ❌         |
+| Invite / remove members, change roles                   |  ✅   | ✅ (not owners) |        ❌         |
+| View dashboard metrics ([dashboard.md](./dashboard.md)) |  ✅   |       ✅        | Own tickets only  |
+| View historical analytics _(planned)_                   |  ✅   |       ✅        |  Own stats only   |
+| Delete organization, transfer ownership _(planned)_     |  ✅   |       ❌        |        ❌         |
 
 - The role-to-permission map lives in `@pulsedesk/shared`. The web app uses it to hide
   controls, and the API uses it to enforce them.

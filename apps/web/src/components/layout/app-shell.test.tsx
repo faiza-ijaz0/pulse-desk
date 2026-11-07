@@ -19,12 +19,13 @@ describe('application shell', () => {
     );
   });
 
-  it('labels the dashboard as sample data', async () => {
+  it('no longer marks the dashboard as a preview (it shows live data)', async () => {
     mockHealth();
     renderApp('/dashboard');
 
-    expect(await screen.findByText('This dashboard is a design preview')).toBeInTheDocument();
-    expect(screen.getByText('Sample data', { selector: 'span' })).toBeInTheDocument();
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    const dashboardLink = within(nav).getByRole('link', { name: /dashboard/i });
+    expect(within(dashboardLink).queryByText(/preview/i)).not.toBeInTheDocument();
   });
 
   it('collapses the desktop sidebar with the button and remembers the choice', async () => {

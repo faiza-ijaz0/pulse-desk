@@ -38,7 +38,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Dashboard',
         to: '/dashboard',
         icon: LayoutDashboard,
-        status: 'preview',
+        status: 'available',
         summary: 'Queue health, SLA risk and team workload at a glance.',
       },
       {

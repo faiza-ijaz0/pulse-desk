@@ -55,12 +55,14 @@ export function ErrorState({
   description,
   onRetry,
   retrying = false,
+  retryLabel = 'Try again',
   className,
 }: {
   title?: ReactNode;
   description: ReactNode;
   onRetry?: () => void;
   retrying?: boolean;
+  retryLabel?: string;
   className?: string;
 }) {
   return (
@@ -77,7 +79,7 @@ export function ErrorState({
       {onRetry && (
         <Button variant="secondary" size="sm" className="mt-5" onClick={onRetry} loading={retrying}>
           {!retrying && <RotateCw aria-hidden="true" />}
-          Try again
+          {retryLabel}
         </Button>
       )}
     </div>

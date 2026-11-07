@@ -114,7 +114,7 @@ Rules learned from the axe scans:
 
 Until a feature is real, the UI says so:
 
-- Sample data lives in clearly named modules (e.g. `features/dashboard/sample-data.ts`) and
+- Sample data, where a preview needs it, lives in clearly named modules (e.g. `sample-data.ts`) and
   is labelled in the UI with a badge and an explanatory alert.
 - Planned pages explain what will exist and in which phase; they contain no inert controls.
 - Controls that depend on unbuilt features are disabled and explain why.

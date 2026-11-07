@@ -14,6 +14,10 @@ import { createCustomersController } from './modules/customers/customers.control
 import { createCustomersRepository } from './modules/customers/customers.repository.ts';
 import { customersRoutes } from './modules/customers/customers.routes.ts';
 import { createCustomersService } from './modules/customers/customers.service.ts';
+import { createDashboardController } from './modules/dashboard/dashboard.controller.ts';
+import { createDashboardRepository } from './modules/dashboard/dashboard.repository.ts';
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes.ts';
+import { createDashboardService } from './modules/dashboard/dashboard.service.ts';
 import { createInvitationsController } from './modules/invitations/invitations.controller.ts';
 import { createInvitationsRepository } from './modules/invitations/invitations.repository.ts';
 import { invitationsRoutes } from './modules/invitations/invitations.routes.ts';
@@ -152,6 +156,14 @@ export function createApiRouter({ env, db, logger, clock }: ApiRouterDependencie
           customerDtos: customersService,
           clock,
         }),
+      ),
+      tenant,
+    ),
+  );
+  router.use(
+    dashboardRoutes(
+      createDashboardController(
+        createDashboardService({ repository: createDashboardRepository(db), clock }),
       ),
       tenant,
     ),

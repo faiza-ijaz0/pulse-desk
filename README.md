@@ -9,11 +9,10 @@ production standards: server-side sessions, role-based access control, tenant is
 enforced in code **and** in the database, background SLA processing, and unit,
 integration, end-to-end and accessibility tests in CI.
 
-> **Status:** the agent-facing workspace is implemented and tested end to end against
-> PostgreSQL. The dashboard is still a clearly labelled **design preview with sample data**,
-> and analytics, real-time updates, email (intake, delivery, password reset) and a customer
-> portal are **planned, not built**. See [Roadmap](#roadmap). PulseDesk isn't deployed
-> anywhere yet.
+> **Status:** the agent-facing workspace, including a live dashboard, is implemented and
+> tested end to end against PostgreSQL. A historical analytics page, real-time updates, email
+> (intake, delivery, password reset) and a customer portal are **planned, not built**. See
+> [Roadmap](#roadmap). PulseDesk isn't deployed anywhere yet.
 
 ## Contents
 
@@ -80,6 +79,11 @@ Everything listed here is implemented and covered by automated tests.
 - **Team management:** change roles, remove members, with last-owner protection.
 - **Invitations:** single-use, expiring invite links for a given email and role, copied by
   the inviter and accepted by an existing or new account; revocable.
+- **Live dashboard:** active tickets, tickets awaiting a first response, SLA health (the
+  same states as the inbox badges) with the tickets that need attention, 30-day average
+  first-response and resolution times, tickets by status, and workload by agent, all read
+  from PostgreSQL per request. Owners and admins see the organization; agents see their own
+  tickets. Definitions: [docs/architecture/dashboard.md](docs/architecture/dashboard.md).
 - **Audit trail (data only):** sensitive changes write audit-log entries; there is no UI to
   browse them yet.
 - **UI:** accessible (WCAG 2.2 AA scans in CI), responsive app shell with a mobile drawer,
@@ -89,8 +93,8 @@ Everything listed here is implemented and covered by automated tests.
 
 There are no screenshots yet. Genuine captures of the running app will be added once the UI
 is finalized; [docs/screenshots/README.md](docs/screenshots/README.md) lists the planned
-screens (inbox, ticket detail, customers, SLA policies, team, settings, dashboard preview,
-light and dark themes).
+screens (dashboard, inbox, ticket detail, customers, SLA policies, team, settings, light and
+dark themes).
 
 ## Architecture
 
@@ -251,6 +255,7 @@ the root (`/health`, `/health/ready`).
 | Teams and tags | CRUD on `/teams` (plus team members) and `/tags`                                                           |
 | SLA policy     | `GET`, `PUT /sla-policy`                                                                                   |
 | Search         | `GET /search?q=`                                                                                           |
+| Dashboard      | `GET /dashboard` (live metrics; organization scope for owners/admins, own tickets for agents)              |
 
 **Errors** use RFC 9457 `application/problem+json` with a stable `code` (for example
 `VALIDATION_FAILED`, `NOT_FOUND`, `RATE_LIMITED`, `TICKET_CLOSED`), a `requestId` that also
@@ -387,6 +392,7 @@ Production-only rules (proxy secret, `__Host-` cookie, HTTPS origins) are descri
 | [Architecture overview](docs/architecture/overview.md)              | Current architecture, layering, cross-cutting concerns, decisions, status |
 | [Data model & tenant isolation](docs/architecture/data-model.md)    | Entities, ticket lifecycle, SLA clocks, isolation layers, constraints     |
 | [Authentication & sessions](docs/architecture/auth-and-sessions.md) | Session lifecycle, cookies, CSRF, RBAC, invitations, abuse protection     |
+| [Live dashboard](docs/architecture/dashboard.md)                    | Dashboard API, metric definitions, scope, queries, limitations, tests     |
 | [Development guide](docs/development.md)                            | Setup, seed data, commands, environment, troubleshooting                  |
 | [Testing strategy](docs/testing.md)                                 | Test layers, suites, test database lifecycle, CI                          |
 | [Coding conventions](docs/conventions.md)                           | TypeScript, naming, API design, layering, git workflow                    |
@@ -399,8 +405,9 @@ Production-only rules (proxy secret, `__Host-` cookie, HTTPS origins) are descri
 
 **Planned** (not built):
 
-- **Dashboard and analytics on live data:** the dashboard is a labelled preview with sample
-  data, and the Analytics page is a placeholder.
+- **Analytics with history:** trends over time, period comparisons and per-agent throughput
+  (the Analytics page is a placeholder). The live dashboard shows current figures and
+  30-day averages only.
 - **Account self-service:** profile, password change and reset, "sign out other devices".
 - **Organization lifecycle:** leave an organization, transfer ownership, delete an organization.
 - **Audit-log viewer** for owners and admins (entries are already recorded).

@@ -1,8 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { VolumeChart } from '@/features/dashboard/volume-chart';
-import { TooltipProvider } from './tooltip';
 import { Button } from './button';
 import { Field } from './field';
 import { Input } from './input';
@@ -61,37 +59,6 @@ describe('Field', () => {
       </Field>,
     );
     expect(screen.getByRole('textbox', { name: 'Organization ID' })).toBeDisabled();
-  });
-});
-
-describe('VolumeChart', () => {
-  const data = [
-    { day: 'Mon', created: 10, solved: 7 },
-    { day: 'Tue', created: 12, solved: 15 },
-  ];
-
-  it('describes each day for assistive tech', () => {
-    render(
-      <TooltipProvider>
-        <VolumeChart data={data} />
-      </TooltipProvider>,
-    );
-    expect(screen.getByRole('img', { name: 'Mon: 10 created, 7 solved' })).toBeInTheDocument();
-    expect(screen.getByText('22 created · 22 solved in the last 7 days')).toBeInTheDocument();
-  });
-
-  it('switches to an accessible table view with exact values', async () => {
-    render(
-      <TooltipProvider>
-        <VolumeChart data={data} />
-      </TooltipProvider>,
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
-
-    expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
-    const rows = screen.getAllByRole('row');
-    expect(rows).toHaveLength(3);
-    expect(rows[2]).toHaveTextContent('Tue1215');
   });
 });
 

@@ -622,6 +622,8 @@ and `"cookie":"[REDACTED]"`, never the values.
 
 - [ ] Create a ticket, reply, add an internal note, change status and priority; the timeline
       shows each change, and the inbox shows an SLA badge.
+- [ ] **Dashboard** (`/dashboard`): shows the **Live** badge and counts that ticket (active,
+      by status, workload); an agent's dashboard shows only their own tickets.
 - [ ] **SLA policies** (`/sla`): targets load, and an owner can save them; an agent sees them
       read-only.
 - [ ] **Settings:** rename the organization and change the auto-close delay; both persist after

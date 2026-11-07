@@ -1,6 +1,7 @@
 export * from './auth.ts';
 export * from './cursor.ts';
 export * from './customers.ts';
+export * from './dashboard.ts';
 export * from './errors.ts';
 export * from './health.ts';
 export * from './invitations.ts';

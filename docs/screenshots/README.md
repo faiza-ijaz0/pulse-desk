@@ -6,17 +6,17 @@ image should be a genuine capture of PulseDesk running locally.
 
 ## Screens to capture
 
-| File (suggested)          | Screen                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------- |
-| `dashboard-light.png`     | Dashboard (currently a design preview with labelled sample data — say so in the caption) |
-| `tickets-inbox-light.png` | Ticket inbox with filters and SLA badges                                                 |
-| `ticket-detail-light.png` | Ticket detail: conversation, internal note, properties and activity timeline             |
-| `customers-light.png`     | Customer list and a customer's ticket history                                            |
-| `sla-policies-light.png`  | SLA policies page with first-response and resolution targets per priority                |
-| `team-light.png`          | Agents & teams: members, roles and invitations                                           |
-| `settings-light.png`      | Settings: organization profile, auto-close and tags                                      |
-| `*-dark.png`              | The same key screens (at least inbox and ticket detail) in the dark theme                |
-| `mobile-*.png` (optional) | Inbox and ticket detail at a phone-sized viewport                                        |
+| File (suggested)          | Screen                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `dashboard-light.png`     | Live dashboard with seed data: metric cards, SLA health, tickets by status, workload |
+| `tickets-inbox-light.png` | Ticket inbox with filters and SLA badges                                             |
+| `ticket-detail-light.png` | Ticket detail: conversation, internal note, properties and activity timeline         |
+| `customers-light.png`     | Customer list and a customer's ticket history                                        |
+| `sla-policies-light.png`  | SLA policies page with first-response and resolution targets per priority            |
+| `team-light.png`          | Agents & teams: members, roles and invitations                                       |
+| `settings-light.png`      | Settings: organization profile, auto-close and tags                                  |
+| `*-dark.png`              | The same key screens (at least inbox and ticket detail) in the dark theme            |
+| `mobile-*.png` (optional) | Inbox and ticket detail at a phone-sized viewport                                    |
 
 ## How to capture
 

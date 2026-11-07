@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('application shell', () => {
-  test('loads the dashboard preview and reaches the real API', async ({ page }) => {
+  test('loads the live dashboard and reaches the real API', async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Support overview' })).toBeVisible();
-    await expect(page.getByText('This dashboard is a design preview')).toBeVisible();
+    await expect(page.getByText('Live', { exact: true })).toBeVisible();
+    await expect(page.getByText('This dashboard is a design preview')).toHaveCount(0);
     // Backed by a real GET /health through the preview server's proxy.
     await expect(page.getByRole('status').filter({ hasText: 'API online' })).toBeVisible();
   });
