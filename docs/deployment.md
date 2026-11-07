@@ -624,6 +624,8 @@ and `"cookie":"[REDACTED]"`, never the values.
       shows each change, and the inbox shows an SLA badge.
 - [ ] **Dashboard** (`/dashboard`): shows the **Live** badge and counts that ticket (active,
       by status, workload); an agent's dashboard shows only their own tickets.
+- [ ] **Analytics** (`/analytics`): the last 30 days count that ticket as created (and the
+      reply and solve, if you made them); switching to 7 days changes the URL and the figures.
 - [ ] **SLA policies** (`/sla`): targets load, and an owner can save them; an agent sees them
       read-only.
 - [ ] **Settings:** rename the organization and change the auto-close delay; both persist after

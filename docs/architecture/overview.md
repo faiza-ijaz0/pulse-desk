@@ -3,7 +3,7 @@
 > Status: the agent workspace (authentication, tenancy, tickets, customers, SLA processing,
 > invitations and member management) is **implemented**. §1–§6 describe the architecture
 > **as built**; planned additions (Redis,
-> background queues, real-time updates, analytics) are marked as planned.
+> background queues, real-time updates) are marked as planned.
 > [Implementation status](#implementation-status) lists what exists today.
 
 ## 1. System context
@@ -113,6 +113,7 @@ apps/api/src/
     ├── invitations/          # invite links: create, revoke, preview, accept, sign up
     ├── teams/  tags/  customers/  search/  health/
     ├── dashboard/            # live metrics (GET /dashboard): one read-only snapshot query set
+    ├── analytics/            # history over a date range (GET /analytics): bucketed in SQL
     ├── tickets/              # inbox, detail, writes, messages, timeline (tickets.policy.ts)
     ├── sla/                  # breach sweep: repository, service, scheduler
     ├── sla-policies/         # default policy targets (GET/PUT /sla-policy)
@@ -274,4 +275,5 @@ Summarized here; full details are in [data-model.md](./data-model.md) and
 | Auto-close: per-organization settings (API + settings UI), in-process sweep closing quiet solved tickets with a SYSTEM timeline event                                                                                       | ✅ Built                                                                   |
 | SLA policy management (`/sla`): default policy targets per priority (`GET`/`PUT /api/v1/sla-policy`, audited), new tickets only, premium page with a read-only view for agents                                              | ✅ Built                                                                   |
 | Live dashboard (`/dashboard`, `GET /api/v1/dashboard`): status, SLA health, response times and workload read from PostgreSQL; organization scope for owners/admins, own tickets for agents ([dashboard.md](./dashboard.md)) | ✅ Built                                                                   |
-| Email delivery, Socket.IO, Redis/BullMQ, historical analytics, audit-log viewer, account self-service, PostgreSQL RLS                                                                                                       | ⏳ planned (see the README roadmap)                                        |
+| Analytics (`/analytics`, `GET /api/v1/analytics`): created vs solved, response and resolution times, SLA compliance and agent activity over up to 366 days, bucketed by local day ([analytics.md](./analytics.md))          | ✅ Built                                                                   |
+| Email delivery, Socket.IO, Redis/BullMQ, audit-log viewer, account self-service, PostgreSQL RLS                                                                                                                             | ⏳ planned (see the README roadmap)                                        |

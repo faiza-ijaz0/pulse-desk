@@ -28,7 +28,7 @@
 | **Ticket**              | A support request                                  | `(organizationId, number)` unique. Status, priority, channel, assignee, team, SLA due/met timestamps.                                                                   |
 | **Message**             | A conversation entry on a ticket                   | Author is an agent, a customer or the system. `PUBLIC` replies or `INTERNAL` notes.                                                                                     |
 | **Tag** / **TicketTag** | Free-form labels                                   | Unique tag name per org.                                                                                                                                                |
-| **TicketEvent**         | Append-only ticket timeline                        | Drives the activity feed today, and is designed to feed analytics (planned): first-response time, resolution time, breach counts, agent throughput.                     |
+| **TicketEvent**         | Append-only ticket timeline                        | Drives the activity feed and analytics ([analytics.md](./analytics.md)): first-response time, resolution time, breach counts, agent throughput.                         |
 | **AuditLog**            | Administrative actions                             | Role changes, invites, SLA policy edits, with actor, IP and `requestId`.                                                                                                |
 
 ### Relationship sketch

@@ -1,8 +1,8 @@
 # Live Dashboard
 
 > Status: **implemented.** `/dashboard` shows live metrics read from PostgreSQL on every
-> request. It replaced the earlier design preview and its sample data. A separate analytics
-> page with history and trends is still planned (see the README roadmap).
+> request. It replaced the earlier design preview and its sample data. History and trends
+> are on the separate analytics page ([analytics.md](./analytics.md)).
 
 ## Endpoint
 
@@ -199,8 +199,8 @@ matches the number they clicked. The inbox has no default status filter, so a ba
 ## Known limitations
 
 - **No history or trends.** Every figure is "now" (or a trailing 30-day average); no deltas or
-  sparklines are shown, because no history is stored to compute them from. That belongs to the
-  planned analytics page (e.g. daily rollups from `TicketEvent`).
+  sparklines are shown here. Trends live on the analytics page ([analytics.md](./analytics.md)),
+  computed from ticket timestamps and the `TicketEvent` timeline.
 - **Calendar time only.** Business-hours calendars and SLA pausing aren't implemented, so neither
   the SLA states nor the averages account for them.
 - **The `own` scope follows the current assignee.** `firstRespondedAt` doesn't record who replied,

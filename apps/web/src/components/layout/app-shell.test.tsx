@@ -1,6 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { BarChart3 } from 'lucide-react';
+import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
+import { PlannedPage } from '@/pages/planned-page';
 import { mockHealth, renderApp, useDesktopViewport } from '@/test/render';
 
 describe('application shell', () => {
@@ -87,14 +90,33 @@ describe('application shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/customers'));
   });
 
-  it('shows an honest placeholder for planned features', async () => {
+  it('shows an honest placeholder for planned features', () => {
+    // No nav item is planned right now; the placeholder stays for the next one.
+    render(
+      <MemoryRouter>
+        <PlannedPage
+          item={{
+            label: 'Reports',
+            to: '/reports',
+            icon: BarChart3,
+            status: 'planned',
+            phase: 'Phase 9',
+            summary: 'Scheduled reports by email.',
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('heading', { name: 'Reports isn’t built yet' })).toBeInTheDocument();
+    expect(screen.getByText(/Planned · Phase 9/)).toBeInTheDocument();
+  });
+
+  it('serves Analytics as a real page, not a placeholder', async () => {
     mockHealth();
     renderApp('/analytics');
 
-    expect(
-      await screen.findByRole('heading', { name: 'Analytics isn’t built yet' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Planned · Phase 6/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Analytics' })).toBeInTheDocument();
+    expect(screen.queryByText(/isn’t built yet/)).not.toBeInTheDocument();
   });
 
   it('shows a not-found page for unknown routes', async () => {

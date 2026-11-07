@@ -10,7 +10,7 @@ const PAGES = [
   { path: '/team', heading: 'Agents & teams' },
   { path: '/sla', heading: 'SLA policies' },
   { path: '/settings', heading: 'Settings' },
-  { path: '/analytics', heading: 'Analytics isn’t built yet' },
+  { path: '/analytics', heading: 'Analytics' },
 ];
 
 for (const theme of ['light', 'dark'] as const) {

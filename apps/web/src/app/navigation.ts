@@ -72,8 +72,7 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Analytics',
         to: '/analytics',
         icon: BarChart3,
-        status: 'planned',
-        phase: 'Phase 6',
+        status: 'available',
         summary:
           'Response and resolution times, SLA compliance and agent throughput over any period.',
       },

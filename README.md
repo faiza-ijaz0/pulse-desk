@@ -9,8 +9,8 @@ production standards: server-side sessions, role-based access control, tenant is
 enforced in code **and** in the database, background SLA processing, and unit,
 integration, end-to-end and accessibility tests in CI.
 
-> **Status:** the agent-facing workspace, including a live dashboard, is implemented and
-> tested end to end against PostgreSQL. A historical analytics page, real-time updates, email
+> **Status:** the agent-facing workspace, including a live dashboard and historical
+> analytics, is implemented and tested end to end against PostgreSQL. Real-time updates, email
 > (intake, delivery, password reset) and a customer portal are **planned, not built**. See
 > [Roadmap](#roadmap). PulseDesk isn't deployed anywhere yet.
 
@@ -84,6 +84,12 @@ Everything listed here is implemented and covered by automated tests.
   first-response and resolution times, tickets by status, and workload by agent, all read
   from PostgreSQL per request. Owners and admins see the organization; agents see their own
   tickets. Definitions: [docs/architecture/dashboard.md](docs/architecture/dashboard.md).
+- **Analytics:** trends over any range of up to a year (cut into days in the viewer's time
+  zone): tickets created vs solved and reopened, first-response and resolution times
+  (average and median), SLA compliance per target and priority, where new tickets are now,
+  and per-agent solves, replies and first-reply times. Built from stored ticket history and the
+  ticket timeline; nothing is pre-aggregated. Definitions:
+  [docs/architecture/analytics.md](docs/architecture/analytics.md).
 - **Audit trail (data only):** sensitive changes write audit-log entries; there is no UI to
   browse them yet.
 - **UI:** accessible (WCAG 2.2 AA scans in CI), responsive app shell with a mobile drawer,
@@ -393,6 +399,7 @@ Production-only rules (proxy secret, `__Host-` cookie, HTTPS origins) are descri
 | [Data model & tenant isolation](docs/architecture/data-model.md)    | Entities, ticket lifecycle, SLA clocks, isolation layers, constraints     |
 | [Authentication & sessions](docs/architecture/auth-and-sessions.md) | Session lifecycle, cookies, CSRF, RBAC, invitations, abuse protection     |
 | [Live dashboard](docs/architecture/dashboard.md)                    | Dashboard API, metric definitions, scope, queries, limitations, tests     |
+| [Analytics](docs/architecture/analytics.md)                         | Analytics API, metric definitions, scope, buckets, queries, limitations   |
 | [Development guide](docs/development.md)                            | Setup, seed data, commands, environment, troubleshooting                  |
 | [Testing strategy](docs/testing.md)                                 | Test layers, suites, test database lifecycle, CI                          |
 | [Coding conventions](docs/conventions.md)                           | TypeScript, naming, API design, layering, git workflow                    |
@@ -405,9 +412,9 @@ Production-only rules (proxy secret, `__Host-` cookie, HTTPS origins) are descri
 
 **Planned** (not built):
 
-- **Analytics with history:** trends over time, period comparisons and per-agent throughput
-  (the Analytics page is a placeholder). The live dashboard shows current figures and
-  30-day averages only.
+- **Analytics extras:** period-over-period comparisons, business-hours time, CSV export,
+  and history-accurate attributes (priority and assignee at the time, replayed from the
+  timeline).
 - **Account self-service:** profile, password change and reset, "sign out other devices".
 - **Organization lifecycle:** leave an organization, transfer ownership, delete an organization.
 - **Audit-log viewer** for owners and admins (entries are already recorded).

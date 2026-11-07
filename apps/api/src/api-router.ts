@@ -5,6 +5,10 @@ import { authenticate, requireTenant } from './http/middleware/authenticate.ts';
 import { authRateLimits } from './http/middleware/rate-limit.ts';
 import type { Clock } from './lib/clock.ts';
 import type { Logger } from './lib/logger.ts';
+import { createAnalyticsController } from './modules/analytics/analytics.controller.ts';
+import { createAnalyticsRepository } from './modules/analytics/analytics.repository.ts';
+import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
+import { createAnalyticsService } from './modules/analytics/analytics.service.ts';
 import { createAuthController } from './modules/auth/auth.controller.ts';
 import { createAuthRepository } from './modules/auth/auth.repository.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
@@ -164,6 +168,14 @@ export function createApiRouter({ env, db, logger, clock }: ApiRouterDependencie
     dashboardRoutes(
       createDashboardController(
         createDashboardService({ repository: createDashboardRepository(db), clock }),
+      ),
+      tenant,
+    ),
+  );
+  router.use(
+    analyticsRoutes(
+      createAnalyticsController(
+        createAnalyticsService({ repository: createAnalyticsRepository(db), clock }),
       ),
       tenant,
     ),
